@@ -31,7 +31,7 @@ unused_result_ok = "warn"
 # Don't Do Bad Async Stuff - prevent deadlocks and concurrency bugs
 await_holding_lock = "warn"
 await_holding_refcell_ref = "warn"
-if_let_mutex = "warn" # only relevant on editions before 2024
+if_let_mutex = "warn"  # only relevant on editions before 2024
 large_futures = "warn"
 
 # Don't Do Unsafe Things with Memory
@@ -66,6 +66,31 @@ allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 
 [dependencies]
+# Enable checkpoint I/O through Burn; `std` also activates SafeTensors support.
+burn = { version = "0.21", default-features = false, features = ["std", "store"] }
+burn-std = { version = "0.21", default-features = false, features = ["std"] }
+camino = "1"
+dirs = "7"
+hf-hub = { version = "1", features = ["blocking"] }
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+usage = { package = "usage-rs", version = "6" }
+
+[dev-dependencies]
+proptest = "1"
+rstest = "0.27"
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt"] }
+usage = { package = "usage-rs", version = "6", features = ["test"] }
+wiremock = "0.6"
+
+[features]
+default = ["cpu"]
+cpu = ["burn/flex"]
+wgpu = ["burn/fusion", "burn/wgpu"]
 
 [lints]
 workspace = true

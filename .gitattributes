@@ -106,6 +106,9 @@
 *.sqlite        binary
 *.sqlite3       binary
 
+# ----- Binary: Miscellaneous -----
+*.safetensors   binary
+
 # ----- Export: Exclude from release archives -----
 .github/                export-ignore
 .devcontainer/          export-ignore

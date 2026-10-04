@@ -1,0 +1,1787 @@
+{
+  "reference": {
+    "json_rendering": "compact",
+    "laya": "0.3.26",
+    "transformers": "5.18.0",
+    "torch": "2.14.1+cpu"
+  },
+  "cases": [
+    {
+      "request": {
+        "state": "alpha beta last",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "gamma",
+              "a": "delta",
+              "other": "epsilon"
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              "alpha",
+              "beta",
+              "gamma"
+            ]
+          },
+          "risk": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            12,
+            4,
+            36,
+            9,
+            13,
+            4,
+            1,
+            9,
+            14,
+            3,
+            10,
+            11,
+            39,
+            3
+          ],
+          "markers": [
+            6,
+            10,
+            14
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            10,
+            4,
+            15,
+            17,
+            9,
+            11,
+            4,
+            15,
+            18,
+            9,
+            12,
+            3,
+            10,
+            11,
+            39,
+            3
+          ],
+          "markers": [
+            9,
+            14,
+            19
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            21,
+            29,
+            23,
+            24,
+            25,
+            26,
+            27,
+            4,
+            20,
+            9,
+            22,
+            29,
+            23,
+            24,
+            28,
+            3,
+            10,
+            11,
+            39,
+            3
+          ],
+          "markers": [
+            7,
+            17
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.16548536717891693,
+          -0.1653727889060974,
+          -0.16545607149600983
+        ],
+        [
+          -0.2991202473640442,
+          -0.2989826202392578,
+          -0.2990885376930237
+        ],
+        [
+          -0.16139240562915802,
+          -0.1610931009054184
+        ]
+      ],
+      "actions": [
+        0.5343171954154968,
+        0.4362567067146301,
+        0.5010006427764893
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "a",
+            "probabilities": {
+              "z": 0.3333,
+              "a": 0.3334,
+              "other": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3334,
+            "action": {
+              "act_probability": 0.5343
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "alpha",
+              "1": "beta",
+              "2": "gamma"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4363
+            }
+          },
+          "risk": {
+            "type": "noul",
+            "noul": 0.5,
+            "confidence": 0.5,
+            "answer_confidence": 0.5,
+            "action": {
+              "act_probability": 0.501
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 82,
+          "output_tokens": 0,
+          "state_tokens": 3,
+          "state_tokens_dropped": 0,
+          "truncated": false,
+          "truncated_questions": []
+        }
+      }
+    },
+    {
+      "request": {
+        "state": {
+          "z": "한글",
+          "a": [
+            1,
+            true,
+            {
+              "last": "cancel"
+            }
+          ]
+        },
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "gamma",
+              "a": "delta",
+              "other": "epsilon"
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              "alpha",
+              "beta",
+              "gamma"
+            ]
+          },
+          "risk": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            12,
+            4,
+            36,
+            9,
+            13,
+            4,
+            1,
+            9,
+            14,
+            3,
+            1,
+            35,
+            1,
+            37,
+            1,
+            36,
+            1,
+            17,
+            29,
+            20,
+            1,
+            39,
+            1,
+            38,
+            1,
+            3
+          ],
+          "markers": [
+            6,
+            10,
+            14
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            10,
+            4,
+            15,
+            17,
+            9,
+            11,
+            4,
+            15,
+            18,
+            9,
+            12,
+            3,
+            1,
+            35,
+            1,
+            37,
+            1,
+            36,
+            1,
+            17,
+            29,
+            20,
+            1,
+            39,
+            1,
+            38,
+            1,
+            3
+          ],
+          "markers": [
+            9,
+            14,
+            19
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            21,
+            29,
+            23,
+            24,
+            25,
+            26,
+            27,
+            4,
+            20,
+            9,
+            22,
+            29,
+            23,
+            24,
+            28,
+            3,
+            1,
+            35,
+            1,
+            37,
+            1,
+            36,
+            1,
+            17,
+            29,
+            20,
+            1,
+            39,
+            1,
+            38,
+            1,
+            3
+          ],
+          "markers": [
+            7,
+            17
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.15601846575737,
+          -0.155951589345932,
+          -0.1559811234474182
+        ],
+        [
+          -0.3033827543258667,
+          -0.30328425765037537,
+          -0.3033830523490906
+        ],
+        [
+          -0.1593659669160843,
+          -0.15911974012851715
+        ]
+      ],
+      "actions": [
+        0.5186973214149475,
+        0.4341042637825012,
+        0.4908908009529114
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "a",
+            "probabilities": {
+              "z": 0.3333,
+              "a": 0.3334,
+              "other": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3334,
+            "action": {
+              "act_probability": 0.5187
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "alpha",
+              "1": "beta",
+              "2": "gamma"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4341
+            }
+          },
+          "risk": {
+            "type": "noul",
+            "noul": 0.5,
+            "confidence": 0.5,
+            "answer_confidence": 0.5,
+            "action": {
+              "act_probability": 0.4909
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 118,
+          "output_tokens": 0,
+          "state_tokens": 15,
+          "state_tokens_dropped": 0,
+          "truncated": false,
+          "truncated_questions": []
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha ",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "gamma",
+              "a": "delta",
+              "other": "epsilon"
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              "alpha",
+              "beta",
+              "gamma"
+            ]
+          },
+          "risk": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        },
+        "options": {
+          "truncation": "truncate",
+          "max_len": 40
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            12,
+            4,
+            36,
+            9,
+            13,
+            4,
+            1,
+            9,
+            14,
+            3,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            3
+          ],
+          "markers": [
+            6,
+            10,
+            14
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            10,
+            4,
+            15,
+            17,
+            9,
+            11,
+            4,
+            15,
+            18,
+            9,
+            12,
+            3,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            3
+          ],
+          "markers": [
+            9,
+            14,
+            19
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            21,
+            29,
+            23,
+            24,
+            25,
+            26,
+            27,
+            4,
+            20,
+            9,
+            22,
+            29,
+            23,
+            24,
+            28,
+            3,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            3
+          ],
+          "markers": [
+            7,
+            17
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.20043134689331055,
+          -0.2003195434808731,
+          -0.20041100680828094
+        ],
+        [
+          -0.32054829597473145,
+          -0.3204362690448761,
+          -0.3205302953720093
+        ],
+        [
+          -0.2162536382675171,
+          -0.21589195728302002
+        ]
+      ],
+      "actions": [
+        0.5104199051856995,
+        0.42241206765174866,
+        0.47996020317077637
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "a",
+            "probabilities": {
+              "z": 0.3333,
+              "a": 0.3334,
+              "other": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3334,
+            "action": {
+              "act_probability": 0.5104
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "alpha",
+              "1": "beta",
+              "2": "gamma"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4224
+            }
+          },
+          "risk": {
+            "type": "noul",
+            "noul": 0.5001,
+            "confidence": 0.5001,
+            "answer_confidence": 0.5001,
+            "action": {
+              "act_probability": 0.48
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 0,
+          "state_tokens": 80,
+          "state_tokens_dropped": 67,
+          "truncated": true,
+          "truncated_questions": [
+            "department",
+            "urgency",
+            "risk"
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "state": [
+          "alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha alpha ",
+          {
+            "last": "cancel"
+          }
+        ],
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "gamma",
+              "a": "delta",
+              "other": "epsilon"
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              "alpha",
+              "beta",
+              "gamma"
+            ]
+          },
+          "risk": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        },
+        "options": {
+          "truncation": "truncate",
+          "max_len": 40
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            12,
+            4,
+            36,
+            9,
+            13,
+            4,
+            1,
+            9,
+            14,
+            3,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            1,
+            39,
+            1,
+            38,
+            1,
+            3
+          ],
+          "markers": [
+            6,
+            10,
+            14
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            10,
+            4,
+            15,
+            17,
+            9,
+            11,
+            4,
+            15,
+            18,
+            9,
+            12,
+            3,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            1,
+            39,
+            1,
+            38,
+            1,
+            3
+          ],
+          "markers": [
+            9,
+            14,
+            19
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            21,
+            29,
+            23,
+            24,
+            25,
+            26,
+            27,
+            4,
+            20,
+            9,
+            22,
+            29,
+            23,
+            24,
+            28,
+            3,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            1,
+            39,
+            1,
+            38,
+            1,
+            3
+          ],
+          "markers": [
+            7,
+            17
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.18712376058101654,
+          -0.18701918423175812,
+          -0.18708932399749756
+        ],
+        [
+          -0.31385335326194763,
+          -0.31374794244766235,
+          -0.313842236995697
+        ],
+        [
+          -0.1936074197292328,
+          -0.19327153265476227
+        ]
+      ],
+      "actions": [
+        0.5115968585014343,
+        0.4268784821033478,
+        0.4854133427143097
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "a",
+            "probabilities": {
+              "z": 0.3333,
+              "a": 0.3334,
+              "other": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3334,
+            "action": {
+              "act_probability": 0.5116
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "alpha",
+              "1": "beta",
+              "2": "gamma"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4269
+            }
+          },
+          "risk": {
+            "type": "noul",
+            "noul": 0.5001,
+            "confidence": 0.5001,
+            "answer_confidence": 0.5001,
+            "action": {
+              "act_probability": 0.4854
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 0,
+          "state_tokens": 56,
+          "state_tokens_dropped": 43,
+          "truncated": true,
+          "truncated_questions": [
+            "department",
+            "urgency",
+            "risk"
+          ]
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "only": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": null
+            }
+          }
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            3,
+            10,
+            3
+          ],
+          "markers": [
+            6
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.17923684418201447
+        ]
+      ],
+      "actions": [
+        0.535250186920166
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "only": {
+            "type": "choice",
+            "choice": "z",
+            "probabilities": {
+              "z": 1.0
+            },
+            "confidence": 1.0,
+            "answer_confidence": 1.0,
+            "action": {
+              "act_probability": 0.5353
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 11,
+          "output_tokens": 0,
+          "state_tokens": 1,
+          "state_tokens_dropped": 0,
+          "truncated": false,
+          "truncated_questions": []
+        }
+      }
+    },
+    {
+      "request": {
+        "state": {
+          "float": 1e-06,
+          "integer_float": 1.0,
+          "negative_zero": -0.0
+        },
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "gamma",
+              "a": "delta",
+              "other": "epsilon"
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              "alpha",
+              "beta",
+              "gamma"
+            ]
+          },
+          "risk": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            12,
+            4,
+            36,
+            9,
+            13,
+            4,
+            1,
+            9,
+            14,
+            3,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            17,
+            1,
+            16,
+            1,
+            1,
+            1,
+            16,
+            1,
+            16,
+            1,
+            3
+          ],
+          "markers": [
+            6,
+            10,
+            14
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            10,
+            4,
+            15,
+            17,
+            9,
+            11,
+            4,
+            15,
+            18,
+            9,
+            12,
+            3,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            17,
+            1,
+            16,
+            1,
+            1,
+            1,
+            16,
+            1,
+            16,
+            1,
+            3
+          ],
+          "markers": [
+            9,
+            14,
+            19
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            21,
+            29,
+            23,
+            24,
+            25,
+            26,
+            27,
+            4,
+            20,
+            9,
+            22,
+            29,
+            23,
+            24,
+            28,
+            3,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            17,
+            1,
+            16,
+            1,
+            1,
+            1,
+            16,
+            1,
+            16,
+            1,
+            3
+          ],
+          "markers": [
+            7,
+            17
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.1646396517753601,
+          -0.1645612269639969,
+          -0.16459335386753082
+        ],
+        [
+          -0.3146022856235504,
+          -0.31449469923973083,
+          -0.3145870268344879
+        ],
+        [
+          -0.1827070713043213,
+          -0.18240919709205627
+        ]
+      ],
+      "actions": [
+        0.5113275051116943,
+        0.43228378891944885,
+        0.48709288239479065
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "a",
+            "probabilities": {
+              "z": 0.3333,
+              "a": 0.3334,
+              "other": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3334,
+            "action": {
+              "act_probability": 0.5113
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "alpha",
+              "1": "beta",
+              "2": "gamma"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4323
+            }
+          },
+          "risk": {
+            "type": "noul",
+            "noul": 0.5,
+            "confidence": 0.5,
+            "answer_confidence": 0.5,
+            "action": {
+              "act_probability": 0.4871
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 130,
+          "output_tokens": 0,
+          "state_tokens": 19,
+          "state_tokens_dropped": 0,
+          "truncated": false,
+          "truncated_questions": []
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha beta",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "gamma",
+              "a": "delta",
+              "other": "epsilon"
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              "alpha",
+              "beta",
+              "gamma"
+            ]
+          },
+          "risk": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        },
+        "options": {
+          "truncation": "truncate",
+          "head_max_len": 16
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            12,
+            4,
+            36,
+            9,
+            13,
+            4,
+            1,
+            9,
+            14,
+            3,
+            10,
+            11,
+            3
+          ],
+          "markers": [
+            6,
+            10,
+            14
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            4,
+            15,
+            17,
+            9,
+            4,
+            15,
+            18,
+            9,
+            3,
+            10,
+            11,
+            3
+          ],
+          "markers": [
+            9,
+            13,
+            17
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            21,
+            4,
+            20,
+            9,
+            22,
+            3,
+            10,
+            11,
+            3
+          ],
+          "markers": [
+            7,
+            11
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.17006906867027283,
+          -0.16995443403720856,
+          -0.1700398176908493
+        ],
+        [
+          -0.2969937324523926,
+          -0.2969694137573242,
+          -0.29688918590545654
+        ],
+        [
+          -0.1779850423336029,
+          -0.17763873934745789
+        ]
+      ],
+      "actions": [
+        0.5336903929710388,
+        0.43568751215934753,
+        0.498373806476593
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "a",
+            "probabilities": {
+              "z": 0.3333,
+              "a": 0.3334,
+              "other": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3334,
+            "action": {
+              "act_probability": 0.5337
+            }
+          },
+          "urgency": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "alpha",
+              "1": "beta",
+              "2": "gamma"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4357
+            }
+          },
+          "risk": {
+            "type": "noul",
+            "noul": 0.5001,
+            "confidence": 0.5001,
+            "answer_confidence": 0.5001,
+            "action": {
+              "act_probability": 0.4984
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 66,
+          "output_tokens": 0,
+          "state_tokens": 2,
+          "state_tokens_dropped": 0,
+          "truncated": false,
+          "truncated_questions": []
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "choice": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": {
+                "a": "한글",
+                "level": 1
+              },
+              "a": [
+                true,
+                "beta"
+              ]
+            }
+          },
+          "score": {
+            "type": "score",
+            "instructions": "Is this urgent?",
+            "criteria": [
+              {
+                "alpha": 0
+              },
+              [
+                "beta",
+                null
+              ],
+              false
+            ]
+          },
+          "noul": {
+            "type": "noul",
+            "instructions": "cancel?",
+            "criteria": {
+              "false": {
+                "z": "alpha"
+              },
+              "true": {
+                "a": "beta"
+              }
+            }
+          }
+        }
+      },
+      "encoded": [
+        {
+          "ids": [
+            2,
+            5,
+            8,
+            9,
+            30,
+            3,
+            4,
+            35,
+            9,
+            1,
+            36,
+            1,
+            37,
+            1,
+            15,
+            1,
+            17,
+            1,
+            4,
+            36,
+            9,
+            1,
+            20,
+            1,
+            11,
+            1,
+            3,
+            10,
+            3
+          ],
+          "markers": [
+            6,
+            18
+          ]
+        },
+        {
+          "ids": [
+            2,
+            6,
+            8,
+            9,
+            32,
+            33,
+            31,
+            34,
+            3,
+            4,
+            15,
+            16,
+            9,
+            1,
+            10,
+            1,
+            16,
+            1,
+            4,
+            15,
+            17,
+            9,
+            1,
+            11,
+            1,
+            1,
+            1,
+            4,
+            15,
+            18,
+            9,
+            19,
+            3,
+            10,
+            3
+          ],
+          "markers": [
+            9,
+            18,
+            27
+          ]
+        },
+        {
+          "ids": [
+            2,
+            7,
+            8,
+            9,
+            38,
+            34,
+            3,
+            4,
+            19,
+            9,
+            1,
+            35,
+            1,
+            10,
+            1,
+            4,
+            20,
+            9,
+            1,
+            36,
+            1,
+            11,
+            1,
+            3,
+            10,
+            3
+          ],
+          "markers": [
+            7,
+            15
+          ]
+        }
+      ],
+      "logits": [
+        [
+          -0.15524937212467194,
+          -0.155274897813797
+        ],
+        [
+          -0.30950242280960083,
+          -0.3095071613788605,
+          -0.3093947768211365
+        ],
+        [
+          -0.18516729772090912,
+          -0.18467870354652405
+        ]
+      ],
+      "actions": [
+        0.5113747119903564,
+        0.43163490295410156,
+        0.47800102829933167
+      ],
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "choice": {
+            "type": "choice",
+            "choice": "z",
+            "probabilities": {
+              "z": 0.5,
+              "a": 0.5
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.5,
+            "action": {
+              "act_probability": 0.5114
+            }
+          },
+          "score": {
+            "type": "score",
+            "score": 1.0,
+            "legend": {
+              "0": "{\"alpha\": 0}",
+              "1": "[\"beta\", null]",
+              "2": "false"
+            },
+            "probabilities": {
+              "0": 0.3333,
+              "1": 0.3333,
+              "2": 0.3333
+            },
+            "confidence": 0.0,
+            "answer_confidence": 0.3333,
+            "action": {
+              "act_probability": 0.4316
+            }
+          },
+          "noul": {
+            "type": "noul",
+            "noul": 0.5001,
+            "confidence": 0.5001,
+            "answer_confidence": 0.5001,
+            "action": {
+              "act_probability": 0.478
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 90,
+          "output_tokens": 0,
+          "state_tokens": 1,
+          "state_tokens_dropped": 0,
+          "truncated": false,
+          "truncated_questions": []
+        }
+      }
+    }
+  ]
+}

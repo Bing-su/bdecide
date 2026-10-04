@@ -1,0 +1,63 @@
+[project]
+name = "bdecide"
+version = "0.1.0"
+description = "A decision model loader and inference framework"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "BlueOak-1.0.0"
+dependencies = []
+
+[dependency-groups]
+dev = ["laya", "torch>=2.11", "transformers[torch]"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+extend-select = [
+  "A",
+  "B",
+  "C4",
+  "C90",
+  "E",
+  "EM",
+  "F",
+  "FA",
+  "FAST",
+  "FBT",
+  "FURB",
+  "I001",
+  "ISC",
+  "N",
+  "PD",
+  "PERF",
+  "PIE",
+  "PL",
+  "PT",
+  "PTH",
+  "RET",
+  "RUF",
+  "S",
+  "SIM",
+  "T20",
+  "TC",
+  "TRY",
+  "UP",
+  "W",
+]
+ignore = ["B905", "E501"]
+unfixable = ["F401"]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"tests/*.py" = ["S101", "T201"]
+
+[tool.uv]
+default-groups = "all"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]

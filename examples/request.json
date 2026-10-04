@@ -1,0 +1,14 @@
+{
+  "state": "I was charged twice for my subscription and need a refund.",
+  "questions": {
+    "department": {
+      "type": "choice",
+      "instructions": "Which team should handle this request?",
+      "criteria": {
+        "billing": "payments, refunds, invoices",
+        "technical": "bugs and technical problems",
+        "other": "anything else"
+      }
+    }
+  }
+}

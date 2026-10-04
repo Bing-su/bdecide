@@ -1,0 +1,17 @@
+{
+  "encoder": "fixture-modernbert",
+  "head_layers": 2,
+  "max_len": 96,
+  "head_max_len": 64,
+  "act_costs": {
+    "escalate": 0.5
+  },
+  "temperature": [
+    0.1,
+    2.0,
+    1.5
+  ],
+  "temperature_by_options": {
+    "choice:3-5": 0.25
+  }
+}
