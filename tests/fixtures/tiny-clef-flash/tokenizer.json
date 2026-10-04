@@ -1,0 +1,171 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {
+      "id": 0,
+      "content": "[UNK]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 1,
+      "content": "[PAD]",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 73,
+      "content": "<|im_start|>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 74,
+      "content": "<|im_end|>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 75,
+      "content": "<think>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    },
+    {
+      "id": 76,
+      "content": "</think>",
+      "single_word": false,
+      "lstrip": false,
+      "rstrip": false,
+      "normalized": false,
+      "special": true
+    }
+  ],
+  "normalizer": null,
+  "pre_tokenizer": {
+    "type": "Whitespace"
+  },
+  "post_processor": {
+    "type": "TemplateProcessing",
+    "single": [
+      {
+        "Sequence": {
+          "id": "A",
+          "type_id": 0
+        }
+      }
+    ],
+    "pair": [
+      {
+        "Sequence": {
+          "id": "A",
+          "type_id": 0
+        }
+      },
+      {
+        "Sequence": {
+          "id": "B",
+          "type_id": 1
+        }
+      }
+    ],
+    "special_tokens": {}
+  },
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {
+      "[UNK]": 0,
+      "[PAD]": 1,
+      "alpha": 2,
+      "beta": 3,
+      "gamma": 4,
+      "delta": 5,
+      "한글": 6,
+      "last": 7,
+      "z": 8,
+      "a": 9,
+      "other": 10,
+      "department": 11,
+      "urgency": 12,
+      "risk": 13,
+      "choice": 14,
+      "score": 15,
+      "noul": 16,
+      "true": 17,
+      "false": 18,
+      "Select": 19,
+      "Is": 20,
+      "this": 21,
+      "urgent": 22,
+      "cancel": 23,
+      "option_id": 24,
+      "description": 25,
+      "0": 26,
+      "1": 27,
+      "2": 28,
+      "3": 29,
+      "4": 30,
+      "5": 31,
+      "6": 32,
+      ":": 33,
+      "?": 34,
+      ".": 35,
+      ",": 36,
+      "{": 37,
+      "}": 38,
+      "[": 39,
+      "]": 40,
+      "\"": 41,
+      "FIELD": 42,
+      "ID": 43,
+      "TYPE": 44,
+      "INSTRUCTION": 45,
+      "ALLOWED": 46,
+      "OPTIONS": 47,
+      "OPTION": 48,
+      "END": 49,
+      "SCHEMA": 50,
+      "FIELDS": 51,
+      "system": 52,
+      "user": 53,
+      "assistant": 54,
+      "STATE": 55,
+      "JOINT": 56,
+      "DECISIONS": 57,
+      "The": 58,
+      "proposition": 59,
+      "is": 60,
+      "or": 61,
+      "the": 62,
+      "answer": 63,
+      "yes": 64,
+      "no": 65,
+      "b": 66,
+      "e": 67,
+      "+": 68,
+      "-": 69,
+      "float": 70,
+      "nested": 71,
+      "zero": 72
+    },
+    "unk_token": "[UNK]"
+  }
+}

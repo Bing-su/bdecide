@@ -118,3 +118,49 @@ fn wgpu_matches_independent_python_answers(#[case] device: Device) {
         assert_eq!(actual["metadata"]["device"], "wgpu");
     }
 }
+
+#[rstest]
+#[case("tiny-clef")]
+#[case("tiny-clef-flash")]
+#[ignore = "requires a wgpu adapter"]
+fn clef_wgpu_matches_independent_python_answers(#[case] variant: &str) {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(variant);
+    let model = AutoModel::from_pretrained(LoadOptions {
+        source: ModelSource::Local(root.clone()),
+        device: Device::Wgpu,
+    })
+    .unwrap();
+    let reference: Value =
+        serde_json::from_slice(&std::fs::read(root.join("reference.json")).unwrap()).unwrap();
+    for case in reference["cases"].as_array().unwrap() {
+        let request = serde_json::from_value(case["request"].clone()).unwrap();
+        let response = serde_json::to_value(model.predict(&request).unwrap()).unwrap();
+        for (id, expected) in case["answers"].as_object().unwrap() {
+            // The score legend is adapted to bdecide's string-valued legend contract.
+            // Compare all remaining native Clef answer fields, e.g. probabilities.
+            let mut pairs = vec![(&response["answers"][id], expected)];
+            while let Some((actual, expected)) = pairs.pop() {
+                match expected {
+                    Value::Object(fields) => pairs.extend(
+                        fields
+                            .iter()
+                            .filter(|(key, _)| *key != "legend")
+                            .map(|(key, value)| (&actual[key], value)),
+                    ),
+                    Value::Number(number) => assert!(
+                        (actual.as_f64().unwrap() - number.as_f64().unwrap()).abs() < 4e-4,
+                        "{actual} != {expected}"
+                    ),
+                    _ => assert_eq!(actual, expected),
+                }
+            }
+        }
+        assert_eq!(response["metadata"]["device"], "wgpu");
+        assert_eq!(
+            response["usage"]["input_tokens"],
+            case["input_ids"].as_array().unwrap().len()
+        );
+    }
+}

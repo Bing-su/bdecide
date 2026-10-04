@@ -3,7 +3,7 @@
 use crate::{
     DecisionModel, Error, Metadata, Request, Response, Result,
     hub::{self, ModelSource},
-    models::laya,
+    models::{clef, laya},
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -46,10 +46,10 @@ impl AutoModel {
                 "CPU backend is disabled; enable cpu or select wgpu".into(),
             ));
         }
-        let artifacts = hub::resolve(&options.source, &laya::REQUIRED_ARTIFACTS)?;
+        let (artifacts, family) = hub::resolve_auto(&options.source)?;
         #[cfg(feature = "wgpu")]
         if matches!(options.device, Device::Wgpu | Device::Auto)
-            && let Some(model) = Self::load_wgpu(&artifacts, options.device)?
+            && let Some(model) = Self::load_wgpu(&artifacts, family, options.device)?
         {
             return Ok(model);
         }
@@ -57,18 +57,16 @@ impl AutoModel {
         {
             let mut metadata = artifacts.metadata;
             metadata.device = "cpu".into();
-            let model = laya::LayaModel::<burn::backend::Flex>::load(
+            Self::load::<burn::backend::Flex>(
                 &artifacts.root,
                 &Default::default(),
                 metadata,
-            )?;
-            Ok(Self {
-                model: Box::new(model),
-            })
+                family,
+            )
         }
         #[cfg(not(feature = "cpu"))]
         {
-            let _ = artifacts;
+            let _ = (artifacts, family);
             Err(Error::Device(
                 "CPU backend is disabled; enable cpu or select wgpu".into(),
             ))
@@ -78,7 +76,11 @@ impl AutoModel {
     // Return None only when Auto may fall back to CPU; an explicitly requested
     // wgpu device must report its failure, e.g. a missing adapter or allocation panic.
     #[cfg(feature = "wgpu")]
-    fn load_wgpu(artifacts: &hub::Artifacts, requested: Device) -> Result<Option<Self>> {
+    fn load_wgpu(
+        artifacts: &hub::Artifacts,
+        family: hub::Family,
+        requested: Device,
+    ) -> Result<Option<Self>> {
         use burn::backend::{Wgpu, wgpu::WgpuDevice};
         use burn::tensor::backend::Backend;
 
@@ -95,18 +97,29 @@ impl AutoModel {
         let mut metadata = artifacts.metadata.clone();
         metadata.device = "wgpu".into();
         let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            laya::LayaModel::<Wgpu<f32, i32>>::load(&artifacts.root, &device, metadata)
+            Self::load::<Wgpu<f32, i32>>(&artifacts.root, &device, metadata, family)
         }));
         match loaded {
-            Ok(Ok(model)) => Ok(Some(Self {
-                model: Box::new(model),
-            })),
+            Ok(Ok(model)) => Ok(Some(model)),
             Ok(Err(error)) => Err(error),
             Err(_) if matches!(requested, Device::Wgpu) => Err(Error::Device(
                 "wgpu could not allocate this checkpoint".into(),
             )),
             Err(_) => Ok(None),
         }
+    }
+
+    fn load<B: burn::tensor::backend::Backend>(
+        root: &camino::Utf8Path,
+        device: &B::Device,
+        metadata: Metadata,
+        family: hub::Family,
+    ) -> Result<Self> {
+        let model: Box<dyn DecisionModel> = match family {
+            hub::Family::Laya => Box::new(laya::LayaModel::<B>::load(root, device, metadata)?),
+            hub::Family::Clef => Box::new(clef::ClefModel::<B>::load(root, device, metadata)?),
+        };
+        Ok(Self { model })
     }
 }
 impl DecisionModel for AutoModel {

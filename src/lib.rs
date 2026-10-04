@@ -15,8 +15,10 @@ mod utils;
 pub use error::{Error, Result};
 pub use models::{AutoModel, Device, LoadOptions};
 pub use models::{
+    clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor},
     laya::{LayaConfig, LayaDecisionModel, LayaModel},
     modernbert::ModernBertConfig,
+    qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig, Qwen3_5TextModel},
 };
 pub use request::{NoulLabels, PredictOptions, Question, Request, Truncation};
 pub use response::{Action, Answer, Metadata, Response, Usage};
