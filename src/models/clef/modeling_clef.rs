@@ -2,7 +2,7 @@ use super::{ClefConfig, ClefProcessor, EncodedRecord, weights::load_clef};
 use crate::{
     Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
     models::qwen3_5::{Qwen3_5Config, Qwen3_5TextModel},
-    utils::{read_checkpoint_json, render},
+    utils::{attention::attention, read_checkpoint_json, render},
 };
 use burn::{
     module::{Initializer, Module, Param},
@@ -103,8 +103,7 @@ impl<B: Backend> MultiheadAttention<B> {
             .reshape([batch, length, self.heads, dim])
             .swap_dims(1, 2);
         self.out_proj.forward(
-            softmax(query.matmul(key.swap_dims(2, 3)) / (dim as f64).sqrt(), 3)
-                .matmul(value)
+            attention(query, key, value, None, Default::default())
                 .swap_dims(1, 2)
                 .reshape([batch, queries, width]),
         )

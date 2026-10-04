@@ -39,4 +39,5 @@ jobs:
         run: sudo apt update && sudo apt install -y mesa-vulkan-drivers
       - run: mbx test --locked --no-default-features --features wgpu --all-targets
       - run: mbx clippy --locked --no-default-features --features wgpu --all-targets -- -D warnings
+      - run: mbx test --locked --no-default-features --features wgpu --lib -- --ignored --nocapture
       - run: mbx test --locked --no-default-features --features wgpu --test wgpu -- --ignored --nocapture

@@ -15,7 +15,7 @@ use burn::{
     module::{Initializer, Module, Param},
     nn::{Embedding, EmbeddingConfig, Gelu, LayerNorm, LayerNormConfig, Linear, LinearConfig},
     tensor::{
-        Int, Tensor, TensorData,
+        Bool, Int, Tensor, TensorData,
         activation::{relu, softmax},
         backend::Backend,
     },
@@ -106,11 +106,11 @@ impl<B: Backend> LayaModel<B> {
                 i64::from(self.processor.pad),
                 length - row.ids.len(),
             ));
-            padding.extend(std::iter::repeat_n(0.0_f32, row.ids.len()));
-            padding.extend(std::iter::repeat_n(f32::MIN, length - row.ids.len()));
+            padding.extend(std::iter::repeat_n(false, row.ids.len()));
+            padding.extend(std::iter::repeat_n(true, length - row.ids.len()));
             types.push(row.kind as i64);
         }
-        let mask = Tensor::<B, 4>::from_data(
+        let mask = Tensor::<B, 4, Bool>::from_data(
             TensorData::new(padding, [count, 1, 1, length]),
             &self.device,
         );
@@ -348,13 +348,14 @@ struct LayaSelfAttention<B: Backend> {
 impl<B: Backend> LayaDecisionModel<B> {
     /// Compute option logits and the pooled state used by the action head.
     ///
-    /// Shapes: IDs `[batch, length]`, additive padding `[batch, 1, 1, length]`,
+    /// Shapes: IDs `[batch, length]`, boolean padding `[batch, 1, 1, length]`,
     /// types `[batch, 1]`, markers `[batch, options, hidden]`.
+    /// Padding is `true` for blocked tokens, e.g. `[false, false, true]`.
     /// Returns logits `[batch, options, 1]` and pooled state `[batch, 1, hidden]`.
     pub fn forward(
         &self,
         ids: Tensor<B, 2, Int>,
-        padding: Tensor<B, 4>,
+        padding: Tensor<B, 4, Bool>,
         types: Tensor<B, 2, Int>,
         markers: Tensor<B, 3, Int>,
     ) -> (Tensor<B, 3>, Tensor<B, 3>) {
@@ -432,7 +433,7 @@ impl<B: Backend> LayaDecisionModel<B> {
 impl<B: Backend> LayaHeadLayer<B> {
     // Keep each residual update with its normalization and projection so layer
     // ordering is explicit, e.g. attention runs before the feed-forward network.
-    fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4>) -> Tensor<B, 3> {
+    fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
         let normalized = self.norm1.forward(hidden.clone());
         let attention = attend(
             self.self_attn.qkv.forward(normalized),

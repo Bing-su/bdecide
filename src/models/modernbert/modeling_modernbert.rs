@@ -8,7 +8,7 @@ use crate::{
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
-    tensor::{Int, Tensor, backend::Backend},
+    tensor::{Bool, Int, Tensor, backend::Backend},
 };
 use projections::{ModernBertAttention, ModernBertMLP};
 
@@ -102,7 +102,7 @@ impl<B: Backend> ModernBertModel<B> {
             final_norm: norm(),
         })
     }
-    pub fn forward(&self, ids: Tensor<B, 2, Int>, padding: Tensor<B, 4>) -> Tensor<B, 3> {
+    pub fn forward(&self, ids: Tensor<B, 2, Int>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
         let mut hidden = self
             .embeddings
             .norm
@@ -117,7 +117,7 @@ impl<B: Backend> ModernBertModel<B> {
 impl<B: Backend> ModernBertEncoderLayer<B> {
     // Keep a layer's residual steps together without changing checkpoint paths,
     // e.g. attn.Wqkv and mlp.Wi still belong to the same encoder layer.
-    fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4>) -> Tensor<B, 3> {
+    fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
         let normalized = match &self.attn_norm {
             Some(norm) => norm.forward(hidden.clone()),
             None => hidden.clone(),
@@ -169,9 +169,13 @@ mod activation_tests {
             let mut model = LayaDecisionModel::<B>::init(&config, &encoder, &device).unwrap();
             // Loading existing weights must retain the config choice, e.g. hidden_activation="relu".
             load_laya(&mut model, &root.join("model.safetensors")).unwrap();
-            let output = model
-                .encoder
-                .forward(ids.clone(), Tensor::zeros([1, 1, 1, length], &device));
+            let output = model.encoder.forward(
+                ids.clone(),
+                Tensor::from_data(
+                    TensorData::new(vec![false; length], [1, 1, 1, length]),
+                    &device,
+                ),
+            );
             let output = output
                 .slice(burn_std::s![.., length - 1..length, ..])
                 .into_data();

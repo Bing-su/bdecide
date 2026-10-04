@@ -1,5 +1,8 @@
 use super::Qwen3_5TextConfig;
-use crate::{Result, utils::activation::HiddenActivation};
+use crate::{
+    Result,
+    utils::{activation::HiddenActivation, attention::attention},
+};
 use burn::{
     module::{Initializer, Module, Param},
     nn::{
@@ -8,8 +11,9 @@ use burn::{
     },
     tensor::{
         Int, Tensor, TensorData,
-        activation::{sigmoid, silu, softmax, softplus},
+        activation::{sigmoid, silu, softplus},
         backend::Backend,
+        ops::AttentionModuleOptions,
     },
 };
 use burn_std::s;
@@ -250,22 +254,19 @@ impl<B: Backend> Qwen3_5Attention<B> {
         let key = repeat_heads(self.rotate(key).swap_dims(1, 2), self.heads / self.kv_heads)
             .swap_dims(1, 2);
         let value = repeat_heads(value, self.heads / self.kv_heads).swap_dims(1, 2);
-        let mask: Vec<f32> = (0..length)
-            .flat_map(|q| (0..length).map(move |k| if k > q { f32::MIN } else { 0.0 }))
-            .collect();
-        let mask = Tensor::<B, 4>::from_data(
-            TensorData::new(mask, [1, 1, length, length]),
-            &query.device(),
-        );
-        let weights = softmax(
-            query.matmul(key.swap_dims(2, 3)) / (self.head_dim as f64).sqrt() + mask,
-            3,
-        );
-        let output = weights.matmul(value).swap_dims(1, 2).reshape([
-            batch,
-            length,
-            self.heads * self.head_dim,
-        ]);
+        // Use causal mode so Burn can avoid a dense triangle, e.g. during full-record inference.
+        let output = attention(
+            query,
+            key,
+            value,
+            None,
+            AttentionModuleOptions {
+                is_causal: true,
+                ..Default::default()
+            },
+        )
+        .swap_dims(1, 2)
+        .reshape([batch, length, self.heads * self.head_dim]);
         self.o_proj.forward(output * sigmoid(gate))
     }
     fn rotate(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {

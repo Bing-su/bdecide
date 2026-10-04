@@ -91,7 +91,7 @@ wiremock = "0.6"
 [features]
 default = ["cpu"]
 cpu = ["burn/flex"]
-wgpu = ["burn/fusion", "burn/wgpu"]
+wgpu = ["burn/autotune", "burn/fusion", "burn/wgpu"]
 
 [lints]
 workspace = true
