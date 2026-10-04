@@ -80,6 +80,7 @@ tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 usage = { package = "usage-rs", version = "6" }
 
 [dev-dependencies]
+approx = "0.5"
 proptest = "1"
 rstest = "0.27"
 tempfile = "3"

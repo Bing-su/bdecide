@@ -518,6 +518,53 @@ fn round(value: f64) -> f64 {
     (value * 10000.0).round_ties_even() / 10000.0
 }
 
+#[cfg(test)]
+mod activation_tests {
+    use super::*;
+    use crate::utils::activation::tests::{assert_close, reference};
+
+    fn matches_python<B: Backend>() {
+        let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-clef");
+        let config: ClefConfig =
+            read_checkpoint_json(&root.join("joint_head_config.json")).unwrap();
+        let mut backbone: Qwen3_5Config = read_checkpoint_json(&root.join("config.json")).unwrap();
+        let reference = reference();
+        let length = reference.input_ids.len();
+        let device = B::Device::default();
+        let ids = Tensor::<B, 2, Int>::from_data(
+            TensorData::new(reference.input_ids, [1, length]),
+            &device,
+        );
+        for case in reference.cases {
+            backbone.text_config.hidden_act.clone_from(&case.name);
+            let mut model = ClefDecisionModel::<B>::init(&config, &backbone, &device).unwrap();
+            // Verify both MLP and Conv1D selection after strict sharded loading, e.g. relu.
+            load_clef(&mut model, &root).unwrap();
+            let output = model.language_model.forward(ids.clone());
+            let output = output.slice(s![.., length - 1..length, ..]).into_data();
+            assert_close(output, &case.qwen3_5, &case.name, 2e-5);
+        }
+        for name in ["prelu", "xielu", "unknown"] {
+            backbone.text_config.hidden_act = name.into();
+            let error = Qwen3_5TextModel::<B>::init(&backbone.text_config, &device).unwrap_err();
+            assert!(matches!(error, Error::UnsupportedModel(_)), "{error}");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "cpu")]
+    fn cpu_matches_python_activation_options() {
+        matches_python::<burn::backend::Flex>();
+    }
+
+    #[test]
+    #[cfg(feature = "wgpu")]
+    #[ignore = "requires a wgpu adapter"]
+    fn wgpu_matches_python_activation_options() {
+        matches_python::<burn::backend::Wgpu<f32, i32>>();
+    }
+}
+
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
     use super::*;

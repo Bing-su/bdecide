@@ -1,11 +1,14 @@
 //! Mirror ModernBERT's module hierarchy while constructing tensors from configuration.
 
 use super::configuration_modernbert::ModernBertConfig;
-use crate::{Result, utils::attention::attend};
+use crate::{
+    Result,
+    utils::{activation::HiddenActivation, attention::attend},
+};
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
-    tensor::{Int, Tensor, activation::gelu, backend::Backend},
+    tensor::{Int, Tensor, backend::Backend},
 };
 use projections::{ModernBertAttention, ModernBertMLP};
 
@@ -48,11 +51,16 @@ mod projections {
     pub(super) struct ModernBertMLP<B: Backend> {
         pub(super) Wi: Linear<B>,
         pub(super) Wo: Linear<B>,
+        // Config owns this choice; checkpoints contain no activation tensors, e.g. relu.
+        #[module(skip)]
+        pub(super) act: HiddenActivation,
     }
 }
 
 impl<B: Backend> ModernBertModel<B> {
     pub fn init(config: &ModernBertConfig, device: &B::Device) -> Result<Self> {
+        config.validate()?;
+        let act = config.hidden_activation.parse::<HiddenActivation>()?;
         let hidden_size = config.hidden_size;
         let norm = || {
             LayerNormConfig::new(hidden_size)
@@ -78,6 +86,7 @@ impl<B: Backend> ModernBertModel<B> {
                 mlp: ModernBertMLP {
                     Wi: linear(hidden_size, 2 * config.intermediate_size, config.mlp_bias),
                     Wo: linear(config.intermediate_size, hidden_size, config.mlp_bias),
+                    act,
                 },
                 heads: config.num_attention_heads,
                 theta,
@@ -122,10 +131,72 @@ impl<B: Backend> ModernBertEncoderLayer<B> {
         let mut hidden = hidden + self.attn.Wo.forward(attention);
         let normalized = self.mlp_norm.forward(hidden.clone());
         let mut halves = self.mlp.Wi.forward(normalized).chunk(2, 2).into_iter();
-        // GEGLU activates the first half; swapping the halves changes the model.
+        // Activate the first half before gating, e.g. GEGLU when the config selects gelu.
         if let (Some(input), Some(gate)) = (halves.next(), halves.next()) {
-            hidden = hidden + self.mlp.Wo.forward(gelu(input) * gate);
+            hidden = hidden + self.mlp.Wo.forward(self.mlp.act.forward(input) * gate);
         }
         hidden
+    }
+}
+
+#[cfg(test)]
+mod activation_tests {
+    use super::*;
+    use crate::{
+        models::laya::{LayaConfig, LayaDecisionModel, weights::load_laya},
+        utils::{
+            activation::tests::{assert_close, reference},
+            read_checkpoint_json,
+        },
+    };
+    use burn::tensor::TensorData;
+    use camino::Utf8Path;
+
+    fn matches_python<B: Backend>() {
+        let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
+        let config: LayaConfig = read_checkpoint_json(&root.join("rl_agent_config.json")).unwrap();
+        let mut encoder: ModernBertConfig =
+            read_checkpoint_json(&root.join("encoder/config.json")).unwrap();
+        let reference = reference();
+        let length = reference.input_ids.len();
+        let device = B::Device::default();
+        let ids = Tensor::<B, 2, Int>::from_data(
+            TensorData::new(reference.input_ids, [1, length]),
+            &device,
+        );
+        for case in reference.cases {
+            encoder.hidden_activation.clone_from(&case.name);
+            let mut model = LayaDecisionModel::<B>::init(&config, &encoder, &device).unwrap();
+            // Loading existing weights must retain the config choice, e.g. hidden_activation="relu".
+            load_laya(&mut model, &root.join("model.safetensors")).unwrap();
+            let output = model
+                .encoder
+                .forward(ids.clone(), Tensor::zeros([1, 1, 1, length], &device));
+            let output = output
+                .slice(burn_std::s![.., length - 1..length, ..])
+                .into_data();
+            assert_close(output, &case.modernbert, &case.name, 2e-5);
+        }
+        for name in ["prelu", "xielu", "unknown"] {
+            encoder.hidden_activation = name.into();
+            let error = ModernBertModel::<B>::init(&encoder, &device).unwrap_err();
+            assert!(
+                matches!(error, crate::Error::UnsupportedModel(_)),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "cpu")]
+    fn cpu_matches_python_activation_options() {
+        matches_python::<burn::backend::Flex>();
+    }
+
+    #[test]
+    #[cfg(feature = "wgpu")]
+    #[ignore = "requires a wgpu adapter"]
+    fn wgpu_matches_python_activation_options() {
+        matches_python::<burn::backend::Wgpu<f32, i32>>();
     }
 }

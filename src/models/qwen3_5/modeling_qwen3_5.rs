@@ -1,5 +1,5 @@
 use super::Qwen3_5TextConfig;
-use crate::Result;
+use crate::{Result, utils::activation::HiddenActivation};
 use burn::{
     module::{Initializer, Module, Param},
     nn::{
@@ -62,6 +62,9 @@ struct Qwen3_5MLP<B: Backend> {
     gate_proj: Linear<B>,
     up_proj: Linear<B>,
     down_proj: Linear<B>,
+    // Keep the configured activation outside weight records, e.g. hidden_act="relu".
+    #[module(skip)]
+    act_fn: HiddenActivation,
 }
 
 #[derive(Module, Debug)]
@@ -94,12 +97,16 @@ struct Qwen3_5GatedDeltaNet<B: Backend> {
     value_heads: usize,
     key_dim: usize,
     value_dim: usize,
+    // Only Conv1D follows hidden_act; the final norm gate remains SiLU.
+    #[module(skip)]
+    activation: HiddenActivation,
 }
 
 impl<B: Backend> Qwen3_5TextModel<B> {
     /// Initialize the Transformers module hierarchy, e.g. a tiny config for parity tests.
     pub fn init(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
         config.validate()?;
+        let activation = config.hidden_act.parse::<HiddenActivation>()?;
         let linear = |i, o, bias| LinearConfig::new(i, o).with_bias(bias).init(device);
         let norm = |dim, offset| Qwen3_5RMSNorm::new(dim, config.rms_norm_eps, offset, device);
         let (rotary_dim, theta) = config.rotary()?;
@@ -161,6 +168,7 @@ impl<B: Backend> Qwen3_5TextModel<B> {
                     value_heads: config.linear_num_value_heads,
                     key_dim: config.linear_key_head_dim,
                     value_dim: config.linear_value_head_dim,
+                    activation,
                 }
             });
             layers.push(Qwen3_5DecoderLayer {
@@ -172,6 +180,7 @@ impl<B: Backend> Qwen3_5TextModel<B> {
                     gate_proj: linear(hidden, config.intermediate_size, false),
                     up_proj: linear(hidden, config.intermediate_size, false),
                     down_proj: linear(config.intermediate_size, hidden, false),
+                    act_fn: activation,
                 },
             });
         }
@@ -196,7 +205,10 @@ impl<B: Backend> Qwen3_5TextModel<B> {
             let normalized = layer.post_attention_layernorm.forward(hidden.clone());
             hidden = hidden
                 + layer.mlp.down_proj.forward(
-                    silu(layer.mlp.gate_proj.forward(normalized.clone()))
+                    layer
+                        .mlp
+                        .act_fn
+                        .forward(layer.mlp.gate_proj.forward(normalized.clone()))
                         * layer.mlp.up_proj.forward(normalized),
                 );
         }
@@ -309,12 +321,14 @@ impl<B: Backend> Qwen3_5GatedDeltaNet<B> {
         let [batch, length, _] = hidden.dims();
         let key_width = self.key_heads * self.key_dim;
         let value_width = self.value_heads * self.value_dim;
-        let mixed = silu(
-            self.conv1d
-                .forward(self.in_proj_qkv.forward(hidden.clone()).swap_dims(1, 2))
-                .slice(s![.., .., ..length]),
-        )
-        .swap_dims(1, 2);
+        let mixed = self
+            .activation
+            .forward(
+                self.conv1d
+                    .forward(self.in_proj_qkv.forward(hidden.clone()).swap_dims(1, 2))
+                    .slice(s![.., .., ..length]),
+            )
+            .swap_dims(1, 2);
         let query = mixed.clone().slice(s![.., .., ..key_width]).reshape([
             batch,
             length,

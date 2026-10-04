@@ -1,5 +1,5 @@
 //! Read checkpoint configuration so model dimensions are validated before inference.
-use crate::{Error, Result};
+use crate::{Error, Result, utils::activation::HiddenActivation};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -55,12 +55,13 @@ fn activation() -> String {
 
 impl ModernBertConfig {
     pub(crate) fn validate(&self) -> Result<()> {
-        if self.model_type != "modernbert" || self.hidden_activation != "gelu" {
+        if self.model_type != "modernbert" {
             return Err(Error::UnsupportedModel(format!(
                 "ModernBERT encoder {} with activation {}",
                 self.model_type, self.hidden_activation
             )));
         }
+        self.hidden_activation.parse::<HiddenActivation>()?;
         let hidden_size = self.hidden_size;
         if hidden_size == 0
             || self.num_attention_heads == 0

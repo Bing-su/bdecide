@@ -1,4 +1,5 @@
 //! Re-export shared helpers so model code stays independent of their file layout.
+pub(crate) mod activation;
 pub(crate) mod attention;
 mod helpers;
 

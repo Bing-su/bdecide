@@ -1,4 +1,4 @@
-use crate::{Error, Result};
+use crate::{Error, Result, utils::activation::HiddenActivation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,6 +118,7 @@ impl Qwen3_5TextConfig {
         })
     }
     pub fn validate(&self) -> Result<()> {
+        self.hidden_act.parse::<HiddenActivation>()?;
         let dimensions = [
             self.vocab_size,
             self.hidden_size,
@@ -144,7 +145,6 @@ impl Qwen3_5TextConfig {
                 .is_multiple_of(self.linear_num_key_heads)
             || !self.rms_norm_eps.is_finite()
             || self.rms_norm_eps <= 0.0
-            || self.hidden_act != "silu"
         {
             return Err(Error::InvalidCheckpoint(
                 "invalid Qwen3.5 text configuration".into(),
