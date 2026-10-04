@@ -4,8 +4,10 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Read ModernBERT dimensions from the checkpoint, e.g. encoder/config.json.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, bon::Builder)]
+#[builder(on(String, into))]
 pub struct ModernBertConfig {
+    #[builder(default = "modernbert")]
     pub model_type: String,
     pub hidden_size: usize,
     pub intermediate_size: usize,
@@ -14,22 +16,31 @@ pub struct ModernBertConfig {
     pub num_attention_heads: usize,
     pub max_position_embeddings: usize,
     #[serde(default = "three")]
+    #[builder(default = three())]
     pub global_attn_every_n_layers: usize,
     #[serde(default = "window")]
+    #[builder(default = window())]
     pub local_attention: usize,
     #[serde(default = "epsilon")]
+    #[builder(default = epsilon())]
     pub norm_eps: f64,
     #[serde(default)]
+    #[builder(default)]
     pub norm_bias: bool,
     #[serde(default)]
+    #[builder(default)]
     pub attention_bias: bool,
     #[serde(default)]
+    #[builder(default)]
     pub mlp_bias: bool,
     #[serde(default = "activation")]
+    #[builder(default = activation())]
     pub hidden_activation: String,
     #[serde(default)]
+    #[builder(default)]
     pub layer_types: Vec<String>,
     #[serde(default)]
+    #[builder(default)]
     pub rope_parameters: Value,
     #[serde(default)]
     pub global_rope_theta: Option<f64>,
@@ -54,6 +65,25 @@ fn activation() -> String {
 }
 
 impl ModernBertConfig {
+    /// Supply encoder dimensions with standard attention defaults, e.g. `ModernBertConfig::new(8, 16, 32, 1, 2, 128)`.
+    pub fn new(
+        hidden_size: usize,
+        intermediate_size: usize,
+        vocab_size: usize,
+        num_hidden_layers: usize,
+        num_attention_heads: usize,
+        max_position_embeddings: usize,
+    ) -> Self {
+        Self::builder()
+            .hidden_size(hidden_size)
+            .intermediate_size(intermediate_size)
+            .vocab_size(vocab_size)
+            .num_hidden_layers(num_hidden_layers)
+            .num_attention_heads(num_attention_heads)
+            .max_position_embeddings(max_position_embeddings)
+            .build()
+    }
+
     pub(crate) fn validate(&self) -> Result<()> {
         if self.model_type != "modernbert" {
             return Err(Error::UnsupportedModel(format!(

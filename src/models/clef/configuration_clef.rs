@@ -2,7 +2,7 @@ use crate::{Error, Result, models::qwen3_5::Qwen3_5Config};
 use serde::{Deserialize, Serialize};
 
 /// Match `joint_head_config.json`, e.g. width=1024 for both public releases.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, bon::Builder)]
 pub struct ClefConfig {
     pub hidden_size: usize,
     pub width: usize,
@@ -13,6 +13,25 @@ pub struct ClefConfig {
 }
 
 impl ClefConfig {
+    /// Specify the decision head dimensions, e.g. `ClefConfig::new(8, 8, 1, 1, 2, 16)`.
+    pub fn new(
+        hidden_size: usize,
+        width: usize,
+        routing_layers: usize,
+        layers: usize,
+        heads: usize,
+        feedforward: usize,
+    ) -> Self {
+        Self {
+            hidden_size,
+            width,
+            routing_layers,
+            layers,
+            heads,
+            feedforward,
+        }
+    }
+
     pub fn validate(&self, backbone: &Qwen3_5Config) -> Result<()> {
         backbone.validate()?;
         if self.hidden_size != backbone.text_config.hidden_size

@@ -6,22 +6,30 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Describe the Laya decision head separately from its encoder configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, bon::Builder)]
 pub struct LayaConfig {
+    #[builder(into)]
     pub encoder: String,
     #[serde(default = "two")]
+    #[builder(default = two())]
     pub head_layers: usize,
     #[serde(default = "max_len")]
+    #[builder(default = max_len())]
     pub max_len: usize,
     #[serde(default = "head_len")]
+    #[builder(default = head_len())]
     pub head_max_len: usize,
     #[serde(default)]
+    #[builder(default)]
     pub act_costs: IndexMap<String, f64>,
     #[serde(default = "temperatures")]
+    #[builder(default = temperatures())]
     pub temperature: Vec<Value>,
     #[serde(default)]
+    #[builder(default)]
     pub temperature_by_options: IndexMap<String, Value>,
     #[serde(default)]
+    #[builder(default)]
     pub binning_map: Value,
 }
 
@@ -42,6 +50,11 @@ fn temperatures() -> Vec<Value> {
 }
 
 impl LayaConfig {
+    /// Keep checkpoint defaults for the head, e.g. `LayaConfig::new("modernbert")`.
+    pub fn new(encoder: impl Into<String>) -> Self {
+        Self::builder().encoder(encoder).build()
+    }
+
     pub(crate) fn validate(&self, encoder: &ModernBertConfig) -> Result<()> {
         // Laya chooses its own attention head count, e.g. hidden_size / 64.
         let head_count = (encoder.hidden_size / 64).max(1);

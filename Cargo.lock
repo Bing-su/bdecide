@@ -301,6 +301,7 @@ name = "bdecide"
 version = "0.1.0"
 dependencies = [
  "approx",
+ "bon",
  "burn",
  "burn-std",
  "camino",

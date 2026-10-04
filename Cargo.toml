@@ -66,7 +66,7 @@ allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 
 [dependencies]
-# Enable checkpoint I/O through Burn; `std` also activates SafeTensors support.
+bon = "3.10"
 burn = { version = "0.21", default-features = false, features = ["std", "store"] }
 burn-std = { version = "0.21", default-features = false, features = ["std"] }
 camino = "1"

@@ -46,7 +46,14 @@ pub(crate) struct RawOutput {
     pub actions: Vec<f32>,
 }
 
+#[bon::bon]
 impl<B: Backend> LayaModel<B> {
+    /// Load reusable pretrained tensors, e.g. `Self::new(root, device)?`.
+    #[builder(start_fn = builder)]
+    pub fn new(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+        Self::from_pretrained(root, device)
+    }
+
     /// Load a local checkpoint onto a caller-selected Burn backend.
     ///
     /// For example use `LayaModel::<burn::backend::Flex>::from_pretrained(path, &Default::default())`.
@@ -345,7 +352,18 @@ struct LayaSelfAttention<B: Backend> {
     out_proj: Linear<B>,
 }
 
+#[bon::bon]
 impl<B: Backend> LayaDecisionModel<B> {
+    /// Initialize validated head and encoder dimensions, e.g. `Self::new(config, encoder, device)?`.
+    #[builder(start_fn = builder)]
+    pub fn new(
+        config: &LayaConfig,
+        encoder: &ModernBertConfig,
+        device: &B::Device,
+    ) -> Result<Self> {
+        Self::init(config, encoder, device)
+    }
+
     /// Compute option logits and the pooled state used by the action head.
     ///
     /// Shapes: IDs `[batch, length]`, boolean padding `[batch, 1, 1, length]`,

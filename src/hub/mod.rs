@@ -32,30 +32,25 @@ impl fmt::Debug for Token {
 }
 
 /// Supply a repo ID directly, e.g. HubOptions::new("convaiinnovations/laya-multilingual").
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, bon::Builder)]
+#[builder(on(String, into))]
 pub struct HubOptions {
     pub repo_id: String,
     pub revision: Option<String>,
     pub subfolder: Option<String>,
     pub cache_dir: Option<Utf8PathBuf>,
     pub endpoint: Option<String>,
+    #[builder(default)]
     pub token: Token,
+    #[builder(default)]
     pub local_files_only: bool,
+    #[builder(default)]
     pub force_download: bool,
 }
 
 impl HubOptions {
     pub fn new(repo_id: impl Into<String>) -> Self {
-        Self {
-            repo_id: repo_id.into(),
-            revision: None,
-            subfolder: None,
-            cache_dir: None,
-            endpoint: None,
-            token: Token::Auto,
-            local_files_only: false,
-            force_download: false,
-        }
+        Self::builder().repo_id(repo_id).build()
     }
 
     // Keep both cache hits and downloads tied to the same requested revision.

@@ -1,7 +1,8 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[builder(on(String, into))]
 pub struct Metadata {
     pub model_id: String,
     pub revision: Option<String>,
@@ -11,15 +12,48 @@ pub struct Metadata {
     pub device: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Metadata {
+    /// Describe a model before resolving its revision, e.g. `Metadata::new("local", "laya", "cpu")`.
+    pub fn new(
+        model_id: impl Into<String>,
+        architecture: impl Into<String>,
+        device: impl Into<String>,
+    ) -> Self {
+        Self::builder()
+            .model_id(model_id)
+            .architecture(architecture)
+            .device(device)
+            .build()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 pub struct Response {
+    #[builder(into)]
     pub model: String,
     pub answers: IndexMap<String, Answer>,
+    #[builder(default)]
     pub usage: Usage,
     pub metadata: Metadata,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+impl Response {
+    /// Assemble ordered answers with empty usage, e.g. `Response::new("local", answers, metadata)`.
+    pub fn new(
+        model: impl Into<String>,
+        answers: IndexMap<String, Answer>,
+        metadata: Metadata,
+    ) -> Self {
+        Self::builder()
+            .model(model)
+            .answers(answers)
+            .metadata(metadata)
+            .build()
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, bon::Builder)]
+#[builder(on(_, default))]
 pub struct Usage {
     pub input_tokens: usize,
     pub output_tokens: usize,
@@ -31,9 +65,23 @@ pub struct Usage {
     pub truncated_head_questions: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl Usage {
+    /// Start token accounting at zero, e.g. `Usage::new()` before processing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 pub struct Action {
     pub act_probability: f64,
+}
+
+impl Action {
+    /// Record the model's action probability, e.g. `Action::new(0.8)`.
+    pub fn new(act_probability: f64) -> Self {
+        Self { act_probability }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

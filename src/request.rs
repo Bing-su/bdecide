@@ -5,12 +5,13 @@ use serde_json::Value;
 use crate::{Error, Result};
 
 /// Preserve question and criterion insertion order because it changes token IDs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 #[serde(deny_unknown_fields)]
 pub struct Request {
     pub state: Value,
     pub questions: IndexMap<String, Question>,
     #[serde(default)]
+    #[builder(default)]
     pub options: PredictOptions,
 }
 
@@ -35,19 +36,25 @@ pub enum Question {
 }
 
 /// Labels change the prompt text; the returned probability always means true.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 #[serde(deny_unknown_fields)]
 pub struct NoulLabels {
+    #[builder(default = "false", into)]
     pub r#false: String,
+    #[builder(default = "true", into)]
     pub r#true: String,
+}
+
+impl NoulLabels {
+    /// Use the standard boolean labels, e.g. `NoulLabels::new()`.
+    pub fn new() -> Self {
+        Self::builder().build()
+    }
 }
 
 impl Default for NoulLabels {
     fn default() -> Self {
-        Self {
-            r#false: "false".into(),
-            r#true: "true".into(),
-        }
+        Self::new()
     }
 }
 
@@ -59,16 +66,29 @@ pub enum Truncation {
     Truncate,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, bon::Builder)]
 #[serde(deny_unknown_fields)]
 pub struct PredictOptions {
     #[serde(default)]
+    #[builder(default)]
     pub truncation: Truncation,
     pub max_len: Option<usize>,
     pub head_max_len: Option<usize>,
 }
 
+impl PredictOptions {
+    /// Keep truncation opt-in, e.g. `PredictOptions::new()` rejects lost tokens.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 impl Request {
+    /// Preserve ordered questions with default options, e.g. `Request::new(state, questions)`.
+    pub fn new(state: Value, questions: IndexMap<String, Question>) -> Self {
+        Self::builder().state(state).questions(questions).build()
+    }
+
     pub fn validate(&self) -> Result<()> {
         if !matches!(
             self.state,

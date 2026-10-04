@@ -7,8 +7,9 @@ use tokenizers::Tokenizer;
 
 const SYSTEM_PROMPT: &str = "Read the complete state and schema. Decide every field jointly. Each answer must be exactly one of that field's allowed options.";
 
-#[derive(Debug)]
+#[derive(Debug, bon::Builder)]
 pub struct EncodedQuestion {
+    #[builder(into)]
     pub question_id: String,
     pub question_type: usize,
     pub question_span: Range<usize>,
@@ -16,11 +17,41 @@ pub struct EncodedQuestion {
     pub option_ids: Vec<String>,
 }
 
-#[derive(Debug)]
+impl EncodedQuestion {
+    /// Preserve the processor's spans, e.g. `EncodedQuestion::new(id, 0, 1..2, spans, options)`.
+    pub fn new(
+        question_id: impl Into<String>,
+        question_type: usize,
+        question_span: Range<usize>,
+        option_spans: Vec<Range<usize>>,
+        option_ids: Vec<String>,
+    ) -> Self {
+        Self {
+            question_id: question_id.into(),
+            question_type,
+            question_span,
+            option_spans,
+            option_ids,
+        }
+    }
+}
+
+#[derive(Debug, bon::Builder)]
 pub struct EncodedRecord {
     pub input_ids: Vec<u32>,
     pub questions: Vec<EncodedQuestion>,
+    #[builder(default)]
     pub usage: Usage,
+}
+
+impl EncodedRecord {
+    /// Start a record before token accounting, e.g. `EncodedRecord::new(ids, questions)`.
+    pub fn new(input_ids: Vec<u32>, questions: Vec<EncodedQuestion>) -> Self {
+        Self::builder()
+            .input_ids(input_ids)
+            .questions(questions)
+            .build()
+    }
 }
 
 /// Match Clef's `encode_record` prompt and span conventions for text/JSON inputs.
@@ -29,7 +60,14 @@ pub struct ClefProcessor {
     vocab_size: usize,
     max_positions: usize,
 }
+#[bon::bon]
 impl ClefProcessor {
+    /// Load a tokenizer with validated dimensions, e.g. `ClefProcessor::new(root, &config)?`.
+    #[builder(start_fn = builder)]
+    pub fn new(root: &Utf8Path, config: &Qwen3_5Config) -> Result<Self> {
+        Self::from_pretrained(root, config)
+    }
+
     pub fn from_pretrained(root: &Utf8Path, config: &Qwen3_5Config) -> Result<Self> {
         config.validate()?;
         let mut tokenizer = Tokenizer::from_file(root.join("tokenizer.json"))

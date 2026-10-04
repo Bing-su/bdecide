@@ -14,18 +14,18 @@ pub enum Device {
     Auto,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, bon::Builder)]
 pub struct LoadOptions {
     pub source: ModelSource,
+    #[builder(default)]
     pub device: Device,
 }
 impl LoadOptions {
     /// Configure Hub loading, e.g. `LoadOptions::new("convaiinnovations/laya")`.
     pub fn new(repo_id: impl Into<String>) -> Self {
-        Self {
-            source: ModelSource::Hub(hub::HubOptions::new(repo_id)),
-            device: Device::Cpu,
-        }
+        Self::builder()
+            .source(ModelSource::Hub(hub::HubOptions::new(repo_id)))
+            .build()
     }
 }
 
@@ -33,7 +33,14 @@ impl LoadOptions {
 pub struct AutoModel {
     model: Box<dyn DecisionModel>,
 }
+#[bon::bon]
 impl AutoModel {
+    /// Load and validate a checkpoint, e.g. `AutoModel::new(LoadOptions::new("repo/model"))?`.
+    #[builder(start_fn = builder)]
+    pub fn new(options: LoadOptions) -> Result<Self> {
+        Self::from_pretrained(options)
+    }
+
     /// Load pretrained weights once, e.g. `AutoModel::from_pretrained(options)?`.
     pub fn from_pretrained(options: LoadOptions) -> Result<Self> {
         #[cfg(not(feature = "wgpu"))]

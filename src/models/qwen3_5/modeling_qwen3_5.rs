@@ -106,7 +106,14 @@ struct Qwen3_5GatedDeltaNet<B: Backend> {
     activation: HiddenActivation,
 }
 
+#[bon::bon]
 impl<B: Backend> Qwen3_5TextModel<B> {
+    /// Initialize validated text dimensions, e.g. `Self::new(config, device)?`.
+    #[builder(start_fn = builder)]
+    pub fn new(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
+        Self::init(config, device)
+    }
+
     /// Initialize the Transformers module hierarchy, e.g. a tiny config for parity tests.
     pub fn init(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
         config.validate()?;

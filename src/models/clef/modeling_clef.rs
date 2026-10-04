@@ -109,7 +109,14 @@ impl<B: Backend> MultiheadAttention<B> {
         )
     }
 }
+#[bon::bon]
 impl<B: Backend> ClefDecisionModel<B> {
+    /// Initialize validated head and backbone dimensions, e.g. `Self::new(config, backbone, device)?`.
+    #[builder(start_fn = builder)]
+    pub fn new(config: &ClefConfig, backbone: &Qwen3_5Config, device: &B::Device) -> Result<Self> {
+        Self::init(config, backbone, device)
+    }
+
     pub fn init(config: &ClefConfig, backbone: &Qwen3_5Config, device: &B::Device) -> Result<Self> {
         config.validate(backbone)?;
         let hidden = config.hidden_size;
@@ -359,7 +366,14 @@ impl<B: Backend> JointSchemaHead<B> {
     }
 }
 
+#[bon::bon]
 impl<B: Backend> ClefModel<B> {
+    /// Load reusable pretrained tensors, e.g. `Self::new(root, device)?`.
+    #[builder(start_fn = builder)]
+    pub fn new(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+        Self::from_pretrained(root, device)
+    }
+
     /// Load either release's local artifacts, e.g. `ClefModel::<Flex>::from_pretrained`.
     pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
         let artifacts = crate::hub::resolve_clef(&crate::hub::ModelSource::Local(root.into()))?;

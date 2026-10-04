@@ -1,64 +1,69 @@
 use crate::{Error, Result, utils::activation::HiddenActivation};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 pub struct Qwen3_5Config {
+    #[builder(default = "qwen3_5", into)]
     pub model_type: String,
+    #[builder(default)]
     pub text_config: Qwen3_5TextConfig,
 }
 
 /// Read Transformers' nested text_config without depending on the vision tower.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 #[serde(default)]
 pub struct Qwen3_5TextConfig {
+    #[builder(default = 248320)]
     pub vocab_size: usize,
+    #[builder(default = 4096)]
     pub hidden_size: usize,
+    #[builder(default = 12288)]
     pub intermediate_size: usize,
+    #[builder(default = 32)]
     pub num_hidden_layers: usize,
+    #[builder(default = 16)]
     pub num_attention_heads: usize,
+    #[builder(default = 4)]
     pub num_key_value_heads: usize,
+    #[builder(default = 256)]
     pub head_dim: usize,
+    #[builder(default = 32768)]
     pub max_position_embeddings: usize,
+    #[builder(default = 1e-6)]
     pub rms_norm_eps: f64,
+    #[builder(default = "silu", into)]
     pub hidden_act: String,
+    #[builder(default)]
     pub attention_bias: bool,
+    #[builder(default = 4)]
     pub full_attention_interval: usize,
     pub layer_types: Option<Vec<String>>,
+    #[builder(default = 4)]
     pub linear_conv_kernel_dim: usize,
+    #[builder(default = 128)]
     pub linear_key_head_dim: usize,
+    #[builder(default = 128)]
     pub linear_value_head_dim: usize,
+    #[builder(default = 16)]
     pub linear_num_key_heads: usize,
+    #[builder(default = 32)]
     pub linear_num_value_heads: usize,
+    #[builder(default = serde_json::json!({"rope_type":"default", "rope_theta":10000000.0, "partial_rotary_factor":0.25}))]
     pub rope_parameters: serde_json::Value,
 }
 
 impl Default for Qwen3_5TextConfig {
     fn default() -> Self {
-        Self {
-            vocab_size: 248320,
-            hidden_size: 4096,
-            intermediate_size: 12288,
-            num_hidden_layers: 32,
-            num_attention_heads: 16,
-            num_key_value_heads: 4,
-            head_dim: 256,
-            max_position_embeddings: 32768,
-            rms_norm_eps: 1e-6,
-            hidden_act: "silu".into(),
-            attention_bias: false,
-            full_attention_interval: 4,
-            layer_types: None,
-            linear_conv_kernel_dim: 4,
-            linear_key_head_dim: 128,
-            linear_value_head_dim: 128,
-            linear_num_key_heads: 16,
-            linear_num_value_heads: 32,
-            rope_parameters: serde_json::json!({"rope_type":"default", "rope_theta":10000000.0, "partial_rotary_factor":0.25}),
-        }
+        Self::new()
     }
 }
 
 impl Qwen3_5Config {
+    /// Wrap text dimensions with the Qwen3.5 architecture tag, e.g. `Qwen3_5Config::new(text)`.
+    pub fn new(text_config: Qwen3_5TextConfig) -> Self {
+        Self::builder().text_config(text_config).build()
+    }
+
     pub fn validate(&self) -> Result<()> {
         if self.model_type != "qwen3_5" {
             return Err(Error::UnsupportedModel(self.model_type.clone()));
@@ -67,6 +72,11 @@ impl Qwen3_5Config {
     }
 }
 impl Qwen3_5TextConfig {
+    /// Use Transformers' text defaults, e.g. `Qwen3_5TextConfig::new()`.
+    pub fn new() -> Self {
+        Self::builder().build()
+    }
+
     pub(crate) fn rotary(&self) -> Result<(usize, f64)> {
         let rope = &self.rope_parameters;
         if rope
