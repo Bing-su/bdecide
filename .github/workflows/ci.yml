@@ -1,0 +1,42 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  cpu:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: jdx/mr-boxington-action@v1
+      - run: mbx fmt --check
+      - run: mbx test --locked --all-targets
+      - run: mbx clippy --locked --all-targets -- -D warnings
+
+  wgpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: jdx/mr-boxington-action@v1
+
+      - name: Install Mesa Vulkan Drivers
+        run: sudo apt update && sudo apt install -y mesa-vulkan-drivers
+      - run: mbx test --locked --no-default-features --features wgpu --all-targets
+      - run: mbx clippy --locked --no-default-features --features wgpu --all-targets -- -D warnings
+      - run: mbx test --locked --no-default-features --features wgpu --test wgpu -- --ignored --nocapture
