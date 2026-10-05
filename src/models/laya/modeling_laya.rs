@@ -348,7 +348,7 @@ struct LayaHeadLayer<B: Backend> {
 #[derive(Module, Debug)]
 struct LayaSelfAttention<B: Backend> {
     // Keep Burn's fused Linear so loading handles the PyTorch [3d, d] transpose once.
-    qkv: Linear<B>,
+    in_proj: Linear<B>,
     out_proj: Linear<B>,
 }
 
@@ -422,7 +422,7 @@ impl<B: Backend> LayaDecisionModel<B> {
                         norm1: norm(),
                         norm2: norm(),
                         self_attn: LayaSelfAttention {
-                            qkv: linear(hidden_size, 3 * hidden_size),
+                            in_proj: linear(hidden_size, 3 * hidden_size),
                             out_proj: linear(hidden_size, hidden_size),
                         },
                         linear1: linear(hidden_size, 4 * hidden_size),
@@ -454,7 +454,7 @@ impl<B: Backend> LayaHeadLayer<B> {
     fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
         let normalized = self.norm1.forward(hidden.clone());
         let attention = attend(
-            self.self_attn.qkv.forward(normalized),
+            self.self_attn.in_proj.forward(normalized),
             self.heads,
             padding,
             None,

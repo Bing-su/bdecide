@@ -36,7 +36,7 @@ pub struct Qwen3_5TextModel<B: Backend> {
 /// Match Transformers' text-only causal LM, e.g. model.embed_tokens and lm_head.
 #[derive(Module, Debug)]
 pub struct Qwen3_5ForCausalLM<B: Backend> {
-    model: Qwen3_5TextModel<B>,
+    pub(crate) model: Qwen3_5TextModel<B>,
     lm_head: Linear<B>,
     #[module(skip)]
     pub config: Qwen3_5TextConfig,
@@ -58,7 +58,7 @@ impl<B: Backend> Qwen3_5ForCausalLM<B> {
         Ok(model)
     }
 
-    fn init(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
+    pub(crate) fn init(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
         Ok(Self {
             model: Qwen3_5TextModel::new(config, device)?,
             lm_head: LinearConfig::new(config.hidden_size, config.vocab_size)
@@ -71,23 +71,10 @@ impl<B: Backend> Qwen3_5ForCausalLM<B> {
     /// Load strict text weights, e.g. a renamed Vev or Wald snapshot directory.
     pub fn from_pretrained(root: &camino::Utf8Path, device: &B::Device) -> Result<Self> {
         let config = Qwen3_5TextConfig::from_pretrained(root)?;
-        let files = super::weights::backbone_files(root)?;
-        let embeddings =
-            super::weights::embedding_weights(root, &files, config.tie_word_embeddings)?;
         // Load before tying so large checkpoints do not allocate random embedding tables first.
         // Both stored aliases with unequal values stay independent, as in Transformers.from_pretrained.
         let mut model = Self::init(&config, device)?;
-        let aliases: &[(&str, &str)] = if embeddings.is_tied() {
-            &[("lm_head.weight", "model.embed_tokens.weight")]
-        } else {
-            &[]
-        };
-        super::weights::load(&mut model, root, &files, aliases, |_, name| {
-            embeddings.map_name(name)
-        })?;
-        if embeddings.is_tied() {
-            model.tie_weights();
-        }
+        super::weights::load_causal_lm(&mut model, root)?;
         Ok(model)
     }
 
@@ -109,6 +96,21 @@ impl<B: Backend> Qwen3_5ForCausalLM<B> {
     /// Replace the output projection, e.g. an independent pretrained lm_head.
     pub fn set_output_embeddings(&mut self, embeddings: Linear<B>) {
         self.lm_head = embeddings;
+    }
+
+    /// Read output token vectors for Clef's lexical prior, e.g. `[batch, length, hidden]`.
+    pub(crate) fn embed_output(&self, ids: Tensor<B, 2, Int>) -> Tensor<B, 3> {
+        if self.lm_head.weight.id == self.model.embed_tokens.weight.id {
+            return self.model.embed_tokens.forward(ids);
+        }
+        let [batch, length] = ids.dims();
+        let weights = self.lm_head.weight.val();
+        let hidden = weights.dims()[0];
+        // Select tokens before transposing, e.g. never copy a whole 248K-token table.
+        weights
+            .select(1, ids.reshape([batch * length]))
+            .transpose()
+            .reshape([batch, length, hidden])
     }
 
     /// Share the same parameter ID, e.g. after replacing inputs and calling tie_weights().
@@ -221,6 +223,14 @@ mod tying_tests {
                 model.lm_head.weight =
                     Param::from_tensor(Tensor::zeros(model.lm_head.weight.val().dims(), &device));
             }
+            // Clef reads the same output table across batches, e.g. repeated token IDs.
+            let ids =
+                Tensor::from_data(TensorData::new(vec![2u32, 3, 2, 4, 2, 3], [2, 3]), &device);
+            assert_eq!(
+                model.embed_output(ids.clone()).into_data(),
+                burn::tensor::module::embedding(model.lm_head.weight.val().transpose(), ids)
+                    .into_data()
+            );
             let actual = model
                 .forward_selected(&input_ids, &answer_ids, &device)
                 .unwrap();
@@ -375,7 +385,7 @@ impl<B: Backend> Qwen3_5TextModel<B> {
         let config = Qwen3_5TextConfig::from_pretrained(root)?;
         let files = super::weights::backbone_files(root)?;
         let mut model = Self::new(&config, device)?;
-        super::weights::load(&mut model, root, &files, &[], |_, source| {
+        crate::models::weights::load(&mut model, root, &files, &[], |source| {
             super::weights::backbone_name(source)
                 .map(|name| name.and_then(|name| name.strip_prefix("model.").map(str::to_owned)))
         })?;

@@ -6,5 +6,6 @@ pub mod modernbert;
 pub mod qwen3_5;
 pub mod vev;
 pub mod wald;
+pub(crate) mod weights;
 
 pub use auto::{AutoModel, Device, LoadOptions};

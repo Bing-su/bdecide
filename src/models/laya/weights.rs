@@ -1,12 +1,7 @@
 //! Handle checkpoint precision and remaining PyTorch/Burn parameter format differences.
 use super::modeling_laya::LayaDecisionModel;
-use crate::{Error, Result};
-use burn::{
-    module::ParamId,
-    store::{ModuleSnapshot, ModuleStore, PyTorchToBurnAdapter, SafetensorsStore, TensorSnapshot},
-    tensor::backend::Backend,
-};
-use burn_std::DType;
+use crate::{Result, models::weights};
+use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 
 /// Apply a Laya PyTorch checkpoint to a separately constructed Burn architecture.
@@ -15,58 +10,13 @@ use camino::Utf8Path;
 /// unexpected, or incorrectly shaped tensors fail instead of retaining random parameters.
 /// For example: `load_laya(&mut architecture, Utf8Path::new("model.safetensors"))?`.
 pub fn load_laya<B: Backend>(model: &mut LayaDecisionModel<B>, path: &Utf8Path) -> Result<()> {
-    let mut store = SafetensorsStore::from_file(path)
-        // Keep native Linear storage: e.g. self_attn.in_proj_weight becomes self_attn.qkv.weight.
-        .with_key_remapping(
-            r"^(head\.layers\.\d+\.self_attn)\.in_proj_weight$",
-            "$1.qkv.weight",
-        )
-        .with_key_remapping(
-            r"^(head\.layers\.\d+\.self_attn)\.in_proj_bias$",
-            "$1.qkv.bias",
-        )
-        // Explicit norm aliases preserve strict unused checks, e.g. scorer.0.weight -> gamma.
-        .with_key_remapping(r"^(.+(?:_norm|\.norm[12]?)|scorer\.0)\.weight$", "$1.gamma")
-        .with_key_remapping(r"^(.+(?:_norm|\.norm[12]?)|scorer\.0)\.bias$", "$1.beta");
-    let snapshots = store
-        .get_all_snapshots()
-        .map_err(|e| Error::Weights(e.to_string()))?;
-    let mut converted = Vec::with_capacity(snapshots.len());
-    for (name, snapshot) in snapshots {
-        if !matches!(snapshot.dtype, DType::F32 | DType::F16 | DType::BF16) {
-            return Err(Error::Weights(format!(
-                "{name}: unsupported dtype {:?}",
-                snapshot.dtype
-            )));
-        }
-        let data = snapshot
-            .to_data()
-            .map_err(|e| Error::Weights(e.to_string()))?
-            .convert::<f32>();
-        if data
-            .as_slice::<f32>()
-            .map_err(|e| Error::Weights(e.to_string()))?
-            .iter()
-            .any(|v| !v.is_finite())
-        {
-            return Err(Error::Weights(format!("{name}: non-finite weights")));
-        }
-        converted.push(TensorSnapshot::from_data(
-            data,
-            name.split('.').map(str::to_owned).collect(),
-            Vec::new(),
-            ParamId::new(),
-        ));
-    }
-    // Burn handles Linear transposition, including the fused head QKV projection.
-    // Only replace the caller's parameters after the complete checkpoint passes.
-    let mut candidate = model.clone();
-    let applied = candidate.apply(converted, None, Some(Box::new(PyTorchToBurnAdapter)), false);
-    if !applied.is_success() || !applied.missing.is_empty() || !applied.unused.is_empty() {
-        return Err(Error::Weights(applied.to_string()));
-    }
-    *model = candidate;
-    Ok(())
+    weights::load(
+        model,
+        Utf8Path::new(""),
+        &[path.to_string()],
+        &[],
+        weights::identity_name,
+    )
 }
 
 #[cfg(all(test, feature = "cpu"))]

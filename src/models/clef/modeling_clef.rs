@@ -1,7 +1,7 @@
 use super::{ClefConfig, ClefProcessor, EncodedRecord, weights::load_clef};
 use crate::{
     Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
-    models::qwen3_5::{Qwen3_5Config, Qwen3_5TextModel},
+    models::qwen3_5::{Qwen3_5Config, Qwen3_5ForCausalLM},
     utils::{attention::attention, read_checkpoint_json, render},
 };
 use burn::{
@@ -31,13 +31,12 @@ pub struct ClefModel<B: Backend> {
 /// Match the released Clef model while reusing the Qwen3.5 text backbone.
 #[derive(Module, Debug)]
 pub struct ClefDecisionModel<B: Backend> {
-    pub(super) language_model: Qwen3_5TextModel<B>,
-    pub(super) output_embeddings: Option<Embedding<B>>,
-    head: JointSchemaHead<B>,
+    pub(super) backbone: Qwen3_5ForCausalLM<B>,
+    pub(super) head: JointSchemaHead<B>,
 }
 
 #[derive(Module, Debug)]
-struct JointSchemaHead<B: Backend> {
+pub(super) struct JointSchemaHead<B: Backend> {
     hidden_norm: LayerNorm<B>,
     memory_projection: Linear<B>,
     question_projection: Linear<B>,
@@ -118,6 +117,17 @@ impl<B: Backend> ClefDecisionModel<B> {
     }
 
     pub fn init(config: &ClefConfig, backbone: &Qwen3_5Config, device: &B::Device) -> Result<Self> {
+        let mut model = Self::init_for_loading(config, backbone, device)?;
+        model.backbone.tie_weights();
+        Ok(model)
+    }
+
+    // Defer tying until weights are loaded, e.g. skip random vocabulary allocation on load.
+    fn init_for_loading(
+        config: &ClefConfig,
+        backbone: &Qwen3_5Config,
+        device: &B::Device,
+    ) -> Result<Self> {
         config.validate(backbone)?;
         let hidden = config.hidden_size;
         let width = config.width;
@@ -130,13 +140,11 @@ impl<B: Backend> ClefDecisionModel<B> {
         };
         let dropout = || DropoutConfig::new(0.0).init();
         let projection = || linear(hidden, width, false);
+        // Clef's wrapper owns tying, e.g. root tie_word_embeddings may differ from text_config.
+        let mut text_config = backbone.text_config.clone();
+        text_config.tie_word_embeddings = backbone.tie_word_embeddings;
         Ok(Self {
-            language_model: Qwen3_5TextModel::init(&backbone.text_config, device)?,
-            // Use the LM output table for the lexical prior, sharing input weights when configured.
-            // For example tie_word_embeddings=true needs no independently stored lm_head.
-            output_embeddings: (!backbone.tie_word_embeddings).then(|| {
-                EmbeddingConfig::new(backbone.text_config.vocab_size, hidden).init(device)
-            }),
+            backbone: Qwen3_5ForCausalLM::init(&text_config, device)?,
             head: JointSchemaHead {
                 hidden_norm: LayerNormConfig::new(hidden).with_epsilon(1e-5).init(device),
                 memory_projection: projection(),
@@ -196,12 +204,8 @@ impl<B: Backend> ClefDecisionModel<B> {
         let hidden = self
             .head
             .hidden_norm
-            .forward(self.language_model.forward(ids.clone()));
-        let lexical = self
-            .output_embeddings
-            .as_ref()
-            .unwrap_or(self.language_model.get_input_embeddings())
-            .forward(ids);
+            .forward(self.backbone.model.forward(ids.clone()));
+        let lexical = self.backbone.embed_output(ids);
         self.head.forward(hidden, lexical, record)
     }
 }
@@ -394,7 +398,7 @@ impl<B: Backend> ClefModel<B> {
         let config: ClefConfig = read_checkpoint_json(&root.join("joint_head_config.json"))?;
         config.validate(&backbone)?;
         let processor = ClefProcessor::from_pretrained(root, &backbone)?;
-        let mut architecture = ClefDecisionModel::init(&config, &backbone, device)?;
+        let mut architecture = ClefDecisionModel::init_for_loading(&config, &backbone, device)?;
         load_clef(&mut architecture, root)?;
         metadata.architecture = "clef".into();
         if metadata.device.is_empty() {
@@ -556,16 +560,17 @@ mod activation_tests {
         );
         for case in reference.cases {
             backbone.text_config.hidden_act.clone_from(&case.name);
-            let mut model = ClefDecisionModel::<B>::init(&config, &backbone, &device).unwrap();
+            let mut model =
+                ClefDecisionModel::<B>::init_for_loading(&config, &backbone, &device).unwrap();
             // Verify both MLP and Conv1D selection after strict sharded loading, e.g. relu.
             load_clef(&mut model, &root).unwrap();
-            let output = model.language_model.forward(ids.clone());
+            let output = model.backbone.model.forward(ids.clone());
             let output = output.slice(s![.., length - 1..length, ..]).into_data();
             assert_close(output, &case.qwen3_5, &case.name, 2e-5);
         }
         for name in ["prelu", "xielu", "unknown"] {
             backbone.text_config.hidden_act = name.into();
-            let error = Qwen3_5TextModel::<B>::init(&backbone.text_config, &device).unwrap_err();
+            let error = Qwen3_5ForCausalLM::<B>::init(&backbone.text_config, &device).unwrap_err();
             assert!(matches!(error, Error::UnsupportedModel(_)), "{error}");
         }
     }
