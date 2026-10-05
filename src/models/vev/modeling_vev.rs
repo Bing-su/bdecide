@@ -1,4 +1,8 @@
 //! Load and evaluate Vev's trained text decisions, e.g. CountingSheep/vev-4b.
+use burn::tensor::backend::Backend;
+use camino::Utf8Path;
+use indexmap::IndexMap;
+
 use super::{
     configuration_vev::VevConfig,
     processing_vev::{prompt, render_state},
@@ -9,9 +13,6 @@ use crate::{
     models::qwen3_5::readout::{Readout, answer, choice_confidence},
     utils::{read_checkpoint_json, sanitize},
 };
-use burn::tensor::backend::Backend;
-use camino::Utf8Path;
-use indexmap::IndexMap;
 
 /// Reuse the loaded text readout and label tokens, e.g. successive Vev requests.
 pub struct VevModel<B: Backend> {
@@ -149,13 +150,15 @@ fn validate_question(question: &Question) -> Result<()> {
 }
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use super::*;
+    use burn::backend::Flex;
     use serde_json::Value;
+
+    use super::*;
 
     #[test]
     fn text_prompts_match_pinned_vev_renderer() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
-        let model = VevModel::<burn::backend::Flex>::load(
+        let model = VevModel::<Flex>::load(
             &root,
             &Default::default(),
             Metadata::new("fixture", "vev", "cpu"),

@@ -1,15 +1,17 @@
-use bdecide::{
-    AutoModel, DecisionModel, Device, Error, LoadOptions, Request, Response, Truncation,
-    hub::{HubOptions, ModelSource, Token},
-};
-use camino::Utf8PathBuf;
-use serde::Serialize;
 use std::{
     fs::File,
-    io::{self, BufRead, BufReader, Write},
+    io::{self, BufRead, BufReader, BufWriter, ErrorKind, Write},
     process::ExitCode,
 };
-use usage::{Args, Cli, Run, Subcommands};
+
+use camino::Utf8PathBuf;
+use serde::Serialize;
+use usage::{Args, Cli, Run, Subcommands, ValueEnum};
+
+use bdecide::{
+    AutoModel, DecisionModel, Device, Error, LoadOptions, Request, Response, Result, Truncation,
+    hub::{HubOptions, ModelSource, Token},
+};
 
 /// Evaluate typed questions with a locally executed decision model.
 #[derive(Cli, Debug)]
@@ -63,7 +65,7 @@ pub(crate) struct Predict {
 }
 
 // Keep CLI value metadata at the binary boundary; library devices stay parser-independent.
-#[derive(usage::ValueEnum, Debug)]
+#[derive(ValueEnum, Debug)]
 enum CliDevice {
     Cpu,
     Wgpu,
@@ -89,7 +91,7 @@ impl Run for Predict {
         match execute(self) {
             Ok(false) => ExitCode::SUCCESS,
             Ok(true) => ExitCode::FAILURE,
-            Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+            Err(error) if error.kind() == ErrorKind::BrokenPipe => ExitCode::SUCCESS,
             Err(error) => {
                 eprintln!("bdecide: {error}");
                 ExitCode::FAILURE
@@ -103,7 +105,7 @@ fn execute(args: Predict) -> io::Result<bool> {
         Some(path) if path.as_str() != "-" => Box::new(BufReader::new(File::open(path)?)),
         _ => Box::new(BufReader::new(io::stdin())),
     };
-    let mut output = io::BufWriter::new(io::stdout().lock());
+    let mut output = BufWriter::new(io::stdout().lock());
     let mut model = None;
     let mut had_errors = false;
     if args.jsonl {
@@ -156,11 +158,7 @@ fn respond(
     Ok(failed)
 }
 
-fn predict_request(
-    args: &Predict,
-    model: &mut Option<AutoModel>,
-    text: &str,
-) -> bdecide::Result<Response> {
+fn predict_request(args: &Predict, model: &mut Option<AutoModel>, text: &str) -> Result<Response> {
     let mut request: Request = serde_json::from_str(text)?;
     if args.truncate {
         request.options.truncation = Truncation::Truncate;
@@ -209,9 +207,10 @@ fn load_options(args: &Predict) -> LoadOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
     use usage::test::{self as harness, Outcome, Page};
+
+    use super::*;
 
     #[test]
     fn predict_defaults_to_cpu_and_automatic_auth() {

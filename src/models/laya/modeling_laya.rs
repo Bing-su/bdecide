@@ -1,16 +1,8 @@
 //! Laya's processor, ModernBERT backbone, and decision head form one model family.
 
-use super::{
-    configuration_laya::LayaConfig,
-    processing_laya::{Batch, LayaProcessor, kind},
-    weights::load_laya,
-};
-use crate::utils::attention::attend;
-use crate::{
-    Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
-    models::modernbert::{ModernBertConfig, ModernBertModel},
-    utils::{read_checkpoint_json, render},
-};
+use std::iter::repeat_n;
+
+use bon::bon;
 use burn::{
     module::{Initializer, Module, Param},
     nn::{Embedding, EmbeddingConfig, Gelu, LayerNorm, LayerNormConfig, Linear, LinearConfig},
@@ -23,6 +15,18 @@ use burn::{
 use burn_std::s;
 use camino::Utf8Path;
 use indexmap::IndexMap;
+
+use super::{
+    configuration_laya::LayaConfig,
+    processing_laya::{Batch, LayaProcessor, kind},
+    weights::load_laya,
+};
+use crate::{
+    Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
+    hub::{ModelSource, resolve},
+    models::modernbert::{ModernBertConfig, ModernBertModel},
+    utils::{attention::attend, read_checkpoint_json, render},
+};
 
 // Keep the artifact layout with Laya so other architectures can supply their own.
 pub(crate) const REQUIRED_ARTIFACTS: [&str; 5] = [
@@ -46,7 +50,7 @@ pub(crate) struct RawOutput {
     pub actions: Vec<f32>,
 }
 
-#[bon::bon]
+#[bon]
 impl<B: Backend> LayaModel<B> {
     /// Load reusable pretrained tensors, e.g. `Self::new(root, device)?`.
     #[builder(start_fn = builder)]
@@ -58,10 +62,7 @@ impl<B: Backend> LayaModel<B> {
     ///
     /// For example use `LayaModel::<burn::backend::Flex>::from_pretrained(path, &Default::default())`.
     pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
-        let artifacts = crate::hub::resolve(
-            &crate::hub::ModelSource::Local(root.into()),
-            &REQUIRED_ARTIFACTS,
-        )?;
+        let artifacts = resolve(&ModelSource::Local(root.into()), &REQUIRED_ARTIFACTS)?;
         Self::load(root, device, artifacts.metadata)
     }
     pub(crate) fn load(
@@ -109,12 +110,12 @@ impl<B: Backend> LayaModel<B> {
         let mut types = Vec::with_capacity(count);
         for row in &batch.rows {
             ids.extend(row.ids.iter().map(|&id| i64::from(id)));
-            ids.extend(std::iter::repeat_n(
+            ids.extend(repeat_n(
                 i64::from(self.processor.pad),
                 length - row.ids.len(),
             ));
-            padding.extend(std::iter::repeat_n(false, row.ids.len()));
-            padding.extend(std::iter::repeat_n(true, length - row.ids.len()));
+            padding.extend(repeat_n(false, row.ids.len()));
+            padding.extend(repeat_n(true, length - row.ids.len()));
             types.push(row.kind as i64);
         }
         let mask = Tensor::<B, 4, Bool>::from_data(
@@ -130,7 +131,7 @@ impl<B: Backend> LayaModel<B> {
         for row in &batch.rows {
             for index in 0..options {
                 let marker = row.markers.get(index).copied().unwrap_or(0) as i64;
-                markers.extend(std::iter::repeat_n(marker, hidden_size));
+                markers.extend(repeat_n(marker, hidden_size));
             }
         }
         let markers = Tensor::<B, 3, Int>::from_data(
@@ -352,7 +353,7 @@ struct LayaSelfAttention<B: Backend> {
     out_proj: Linear<B>,
 }
 
-#[bon::bon]
+#[bon]
 impl<B: Backend> LayaDecisionModel<B> {
     /// Initialize validated head and encoder dimensions, e.g. `Self::new(config, encoder, device)?`.
     #[builder(start_fn = builder)]
@@ -470,16 +471,22 @@ impl<B: Backend> LayaHeadLayer<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::utils::read;
     #[cfg(feature = "cpu")]
     use burn::backend::Flex;
+    #[cfg(feature = "wgpu")]
+    use burn::backend::Wgpu;
     use proptest::prelude::*;
+    use serde_json::Value;
+    #[cfg(feature = "cpu")]
+    use serde_json::json;
+
+    use super::*;
+    use crate::{models::laya::processing_laya::Encoded, utils::read};
 
     fn verify_reference<B: Backend>(logit_epsilon: f64, answer_epsilon: f64) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
         let model = LayaModel::<B>::from_pretrained(&root, &Default::default()).unwrap();
-        let fixtures: serde_json::Value =
+        let fixtures: Value =
             serde_json::from_slice(&read(&root.parent().unwrap().join("reference.json")).unwrap())
                 .unwrap();
         for case in fixtures["cases"].as_array().unwrap() {
@@ -492,7 +499,7 @@ mod tests {
                     .questions
                     .values()
                     .zip(case["encoded"].as_array().unwrap())
-                    .map(|(question, row)| super::super::processing_laya::Encoded {
+                    .map(|(question, row)| Encoded {
                         ids: serde_json::from_value(row["ids"].clone()).unwrap(),
                         markers: serde_json::from_value(row["markers"].clone()).unwrap(),
                         kind: kind(question).1,
@@ -514,9 +521,7 @@ mod tests {
                     Question::Choice { criteria, .. } | Question::Noul { criteria, .. } => criteria
                         .values()
                         .all(|value| value.is_string() || value.is_null()),
-                    Question::Score { criteria, .. } => {
-                        criteria.iter().all(serde_json::Value::is_string)
-                    }
+                    Question::Score { criteria, .. } => criteria.iter().all(Value::is_string),
                 });
             if text_only {
                 assert!(same_tokens);
@@ -538,10 +543,9 @@ mod tests {
             // Compare JSON-valued legends by content, e.g. {"a":1} equals {"a": 1}.
             for answers in [&mut actual["answers"], &mut expected] {
                 for answer in answers.as_object_mut().unwrap().values_mut() {
-                    if let Some(serde_json::Value::Object(legend)) = answer.get_mut("legend") {
+                    if let Some(Value::Object(legend)) = answer.get_mut("legend") {
                         for text in legend.values_mut() {
-                            if let Ok(value) =
-                                serde_json::from_str::<serde_json::Value>(text.as_str().unwrap())
+                            if let Ok(value) = serde_json::from_str::<Value>(text.as_str().unwrap())
                             {
                                 *text = value;
                             }
@@ -572,17 +576,17 @@ mod tests {
     #[test]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_pytorch_on_reference_tokens() {
-        verify_reference::<burn::backend::Wgpu<f32, i32>>(4e-4, 4e-4);
+        verify_reference::<Wgpu<f32, i32>>(4e-4, 4e-4);
     }
 
-    fn compare(actual: &serde_json::Value, expected: &serde_json::Value, epsilon: f64) {
+    fn compare(actual: &Value, expected: &Value, epsilon: f64) {
         match expected {
-            serde_json::Value::Object(fields) => {
+            Value::Object(fields) => {
                 for (key, value) in fields {
                     compare(&actual[key], value, epsilon);
                 }
             }
-            serde_json::Value::Number(value) => assert!(
+            Value::Number(value) => assert!(
                 (actual.as_f64().expect("actual numeric answer")
                     - value.as_f64().expect("reference numeric answer"))
                 .abs()
@@ -605,7 +609,7 @@ mod tests {
     fn default_truncation_refuses_loss_of_information() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
         let model = LayaModel::<Flex>::from_pretrained(&root, &Default::default()).unwrap();
-        let request: Request = serde_json::from_value(serde_json::json!({"state":"alpha ".repeat(100),"questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
+        let request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(100),"questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
         assert!(matches!(
             model.predict(&request),
             Err(Error::InvalidRequest(_))

@@ -1,9 +1,10 @@
 //! Share text rendering and tokenization while processors own their prompt formats.
 
-use crate::{Error, Result};
 use camino::Utf8Path;
 use serde_json::Value;
 use tokenizers::{Encoding, Tokenizer};
+
+use crate::{Error, Result};
 
 pub(crate) fn render(value: &Value) -> Result<String> {
     // Keep text verbatim and use standard JSON for structured data, e.g. {"a":1}.
@@ -73,6 +74,8 @@ pub(crate) fn token_ids(
 
 #[cfg(test)]
 mod tests {
+    use tempfile::tempdir;
+
     use super::*;
 
     #[test]
@@ -115,7 +118,7 @@ mod tests {
                 ..Default::default()
             }))
             .unwrap();
-        let temp = tempfile::tempdir().unwrap();
+        let temp = tempdir().unwrap();
         let path = Utf8Path::from_path(temp.path())
             .unwrap()
             .join("tokenizer.json");

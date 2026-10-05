@@ -1,6 +1,6 @@
 //! Share multi-head attention across encoders and decision heads.
 use burn::tensor::{
-    BasicOps, Bool, Tensor, TensorData, backend::Backend, ops::AttentionModuleOptions,
+    BasicOps, Bool, Tensor, TensorData, backend::Backend, module, ops::AttentionModuleOptions,
 };
 use burn_std::s;
 
@@ -12,7 +12,7 @@ pub(crate) fn attention<B: Backend>(
     mask: Option<Tensor<B, 4, Bool>>,
     options: AttentionModuleOptions,
 ) -> Tensor<B, 4> {
-    burn::tensor::module::attention(
+    module::attention(
         materialize(query),
         materialize(key),
         materialize(value),
@@ -104,8 +104,13 @@ pub(crate) fn attend<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use approx::abs_diff_eq;
+    #[cfg(feature = "cpu")]
+    use burn::backend::Flex;
+    #[cfg(feature = "wgpu")]
+    use burn::backend::Wgpu;
+
+    use super::*;
 
     fn matches_masked_means<B: Backend>() {
         let device = B::Device::default();
@@ -167,14 +172,14 @@ mod tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_masked_means() {
-        matches_masked_means::<burn::backend::Flex>();
+        matches_masked_means::<Flex>();
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_masked_means() {
-        matches_masked_means::<burn::backend::Wgpu<f32, i32>>();
+        matches_masked_means::<Wgpu<f32, i32>>();
     }
 
     #[test]

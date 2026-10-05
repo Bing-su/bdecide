@@ -1,9 +1,6 @@
-use super::{ClefConfig, ClefProcessor, EncodedRecord, weights::load_clef};
-use crate::{
-    Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
-    models::qwen3_5::{Qwen3_5Config, Qwen3_5ForCausalLM},
-    utils::{attention::attention, read_checkpoint_json, render},
-};
+use std::ops::Range;
+
+use bon::bon;
 use burn::{
     module::{Initializer, Module, Param},
     nn::{
@@ -12,13 +9,21 @@ use burn::{
     },
     tensor::{
         Int, Tensor, TensorData,
-        activation::{sigmoid, softmax},
+        activation::{gelu, sigmoid, softmax},
         backend::Backend,
     },
 };
 use burn_std::s;
 use camino::Utf8Path;
 use indexmap::IndexMap;
+
+use super::{ClefConfig, ClefProcessor, EncodedRecord, weights::load_clef};
+use crate::{
+    Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
+    hub::{ModelSource, resolve_clef},
+    models::qwen3_5::{Qwen3_5Config, Qwen3_5ForCausalLM},
+    utils::{attention::attention, read_checkpoint_json, render},
+};
 
 /// Own Clef's pretrained backbone, head, and processor for repeated predictions.
 pub struct ClefModel<B: Backend> {
@@ -108,7 +113,7 @@ impl<B: Backend> MultiheadAttention<B> {
         )
     }
 }
-#[bon::bon]
+#[bon]
 impl<B: Backend> ClefDecisionModel<B> {
     /// Initialize validated head and backbone dimensions, e.g. `Self::new(config, backbone, device)?`.
     #[builder(start_fn = builder)]
@@ -213,7 +218,7 @@ impl<B: Backend> ClefDecisionModel<B> {
 fn unit<B: Backend>(input: Tensor<B, 3>, eps: f64) -> Tensor<B, 3> {
     input.clone() / input.square().sum_dim(2).sqrt().clamp_min(eps)
 }
-fn mean_span<B: Backend>(values: &Tensor<B, 3>, span: &std::ops::Range<usize>) -> Tensor<B, 3> {
+fn mean_span<B: Backend>(values: &Tensor<B, 3>, span: &Range<usize>) -> Tensor<B, 3> {
     values
         .clone()
         .slice(s![.., span.start..span.end, ..])
@@ -322,9 +327,9 @@ impl<B: Backend> JointSchemaHead<B> {
             fields = fields + layer.multihead_attn.forward(normalized, memory.clone());
             let normalized = layer.norm3.forward(fields.clone());
             fields = fields
-                + layer.linear2.forward(burn::tensor::activation::gelu(
-                    layer.linear1.forward(normalized),
-                ));
+                + layer
+                    .linear2
+                    .forward(gelu(layer.linear1.forward(normalized)));
         }
         let fields = self.field_norm.forward(fields);
         let prior_scale = self
@@ -376,7 +381,7 @@ impl<B: Backend> JointSchemaHead<B> {
     }
 }
 
-#[bon::bon]
+#[bon]
 impl<B: Backend> ClefModel<B> {
     /// Load reusable pretrained tensors, e.g. `Self::new(root, device)?`.
     #[builder(start_fn = builder)]
@@ -386,7 +391,7 @@ impl<B: Backend> ClefModel<B> {
 
     /// Load either release's local artifacts, e.g. `ClefModel::<Flex>::from_pretrained`.
     pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
-        let artifacts = crate::hub::resolve_clef(&crate::hub::ModelSource::Local(root.into()))?;
+        let artifacts = resolve_clef(&ModelSource::Local(root.into()))?;
         Self::load(root, device, artifacts.metadata)
     }
     pub(crate) fn load(
@@ -543,6 +548,11 @@ fn round(value: f64) -> f64 {
 
 #[cfg(test)]
 mod activation_tests {
+    #[cfg(feature = "cpu")]
+    use burn::backend::Flex;
+    #[cfg(feature = "wgpu")]
+    use burn::backend::Wgpu;
+
     use super::*;
     use crate::utils::activation::tests::{assert_close, reference};
 
@@ -578,24 +588,32 @@ mod activation_tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_python_activation_options() {
-        matches_python::<burn::backend::Flex>();
+        matches_python::<Flex>();
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_python_activation_options() {
-        matches_python::<burn::backend::Wgpu<f32, i32>>();
+        matches_python::<Wgpu<f32, i32>>();
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     #[cfg(feature = "cpu")]
     use burn::backend::Flex;
+    #[cfg(feature = "wgpu")]
+    use burn::backend::Wgpu;
     use rstest::rstest;
     use serde_json::Value;
+    #[cfg(feature = "cpu")]
+    use serde_json::json;
+
+    use super::*;
+    #[cfg(feature = "cpu")]
+    use crate::Truncation;
+    use crate::models::clef::EncodedQuestion;
 
     fn verify_reference<B: Backend>(variant: &str, epsilon: f64) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -619,7 +637,7 @@ mod tests {
                     .unwrap()
                     .iter()
                     .map(|question| {
-                        super::super::EncodedQuestion::new(
+                        EncodedQuestion::new(
                             question["question_id"].as_str().unwrap(),
                             question["question_type"].as_u64().unwrap() as usize,
                             span(&question["question_span"]),
@@ -705,7 +723,7 @@ mod tests {
     #[case("tiny-clef-flash")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_transformers_on_reference_tokens(#[case] variant: &str) {
-        verify_reference::<burn::backend::Wgpu<f32, i32>>(variant, 4e-4);
+        verify_reference::<Wgpu<f32, i32>>(variant, 4e-4);
     }
 
     #[cfg(feature = "cpu")]
@@ -714,12 +732,12 @@ mod tests {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-clef-flash");
         let config = read_checkpoint_json(&root.join("config.json")).unwrap();
         let processor = ClefProcessor::from_pretrained(&root, &config).unwrap();
-        let mut request: Request = serde_json::from_value(serde_json::json!({"state":"alpha ".repeat(600), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
+        let mut request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(600), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
         assert!(matches!(
             processor.process(&request),
             Err(Error::InvalidRequest(_))
         ));
-        request.options.truncation = crate::Truncation::Truncate;
+        request.options.truncation = Truncation::Truncate;
         let encoded = processor.process(&request).unwrap();
         assert!(encoded.usage.truncated);
         assert!(encoded.usage.state_tokens_dropped > 0);

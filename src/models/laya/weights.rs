@@ -1,8 +1,9 @@
 //! Handle checkpoint precision and remaining PyTorch/Burn parameter format differences.
-use super::modeling_laya::LayaDecisionModel;
-use crate::{Result, models::weights};
 use burn::tensor::backend::Backend;
 use camino::Utf8Path;
+
+use super::modeling_laya::LayaDecisionModel;
+use crate::{Result, models::weights};
 
 /// Apply a Laya PyTorch checkpoint to a separately constructed Burn architecture.
 ///
@@ -21,19 +22,20 @@ pub fn load_laya<B: Backend>(model: &mut LayaDecisionModel<B>, path: &Utf8Path) 
 
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use super::*;
-    use crate::models::{laya::LayaConfig, modernbert::ModernBertConfig};
     use burn::backend::Flex;
+
+    use super::*;
+    use crate::{
+        models::{laya::LayaConfig, modernbert::ModernBertConfig},
+        utils::read,
+    };
     #[test]
     fn rejects_wrong_shapes_without_modifying_the_existing_model() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
-        let config: LayaConfig = serde_json::from_slice(
-            &crate::utils::read(&root.join("rl_agent_config.json")).unwrap(),
-        )
-        .unwrap();
+        let config: LayaConfig =
+            serde_json::from_slice(&read(&root.join("rl_agent_config.json")).unwrap()).unwrap();
         let mut encoder: ModernBertConfig =
-            serde_json::from_slice(&crate::utils::read(&root.join("encoder/config.json")).unwrap())
-                .unwrap();
+            serde_json::from_slice(&read(&root.join("encoder/config.json")).unwrap()).unwrap();
         encoder.hidden_size = 64;
         let mut model =
             LayaDecisionModel::<Flex>::init(&config, &encoder, &Default::default()).unwrap();

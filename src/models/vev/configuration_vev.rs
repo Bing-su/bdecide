@@ -1,6 +1,7 @@
 //! Validate the merged Vev release layout, e.g. vev.json's base must be '.'.
-use crate::{Error, Result};
 use serde::Deserialize;
+
+use crate::{Error, Result};
 
 #[derive(Deserialize)]
 pub(crate) struct VevConfig {

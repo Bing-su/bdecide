@@ -1,11 +1,14 @@
 #![cfg(feature = "cpu")]
+use std::{
+    fs,
+    io::Write,
+    process::{Command, Output, Stdio},
+};
+
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
-use std::{
-    io::Write,
-    process::{Command, Stdio},
-};
+use tempfile::tempdir;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{method, path},
@@ -26,7 +29,7 @@ async fn hub_server(prefix: &str) -> MockServer {
     let server = MockServer::start().await;
     for (index, file) in FILES.iter().enumerate() {
         let revision = if index == 0 { "main" } else { SHA };
-        let body = std::fs::read(fixture().join(file)).expect("Hub test setup must succeed");
+        let body = fs::read(fixture().join(file)).expect("Hub test setup must succeed");
         let name = Utf8Path::new(file)
             .file_name()
             .expect("artifact has a name");
@@ -54,12 +57,7 @@ fn fixture() -> Utf8PathBuf {
     Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya")
 }
 
-fn invoke(
-    cache: &Utf8Path,
-    endpoint: &str,
-    subfolder: &str,
-    extra: &[&str],
-) -> std::process::Output {
+fn invoke(cache: &Utf8Path, endpoint: &str, subfolder: &str, extra: &[&str]) -> Output {
     // Keep Hub settings per child, e.g. HF_TOKEN; command! has no environment overrides.
     let mut child = Command::new(env!("CARGO_BIN_EXE_bdecide"))
         .args([
@@ -101,7 +99,7 @@ fn invoke(
 #[case::glob_name("v[1]")]
 #[tokio::test]
 async fn hub_pins_files_and_supports_python_cache_and_anonymous_auth(#[case] subfolder: &str) {
-    let directory = tempfile::tempdir().expect("Hub test setup must succeed");
+    let directory = tempdir().expect("Hub test setup must succeed");
     // Exercise Unicode and spaces through CLI parsing and Hub cache I/O.
     let cache = Utf8Path::from_path(directory.path())
         .expect("temporary path must be UTF-8")
@@ -156,7 +154,7 @@ async fn hub_pins_files_and_supports_python_cache_and_anonymous_auth(#[case] sub
         server.received_requests().await.unwrap().len(),
         requests.len()
     );
-    std::fs::remove_file(cache.join(format!(
+    fs::remove_file(cache.join(format!(
         "models--test--laya/snapshots/{SHA}/{prefix}tokenizer/tokenizer.json"
     )))
     .expect("Hub test setup must succeed");

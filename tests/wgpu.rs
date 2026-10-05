@@ -1,27 +1,31 @@
 #![cfg(feature = "wgpu")]
-use bdecide::{
-    AutoModel, ClefProcessor, DecisionModel, Device, LoadOptions, Question, Qwen3_5Config, Request,
-    hub::ModelSource,
-};
+use std::{fs, process::Command};
+
 use burn::{backend::Wgpu, tensor::Tensor};
 use camino::Utf8Path;
 use rstest::rstest;
 use serde_json::Value;
+use tempfile::tempdir;
+
+use bdecide::{
+    AutoModel, ClefProcessor, DecisionModel, Device, LoadOptions, Question, Qwen3_5Config, Request,
+    hub::ModelSource,
+};
 
 #[cfg(target_os = "linux")]
 #[rstest]
 #[case::explicit("wgpu")]
 #[case::automatic("auto")]
 fn missing_adapter_keeps_jsonl_requests_recoverable(#[case] device: &str) {
-    let directory = tempfile::tempdir().unwrap();
+    let directory = tempdir().unwrap();
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
     let input = directory.path().join("requests.jsonl");
     let request = r#"{"state":"alpha","questions":{"q":{"type":"noul","instructions":"cancel?"}}}"#;
-    std::fs::write(&input, format!("{request}\n{request}\n")).unwrap();
+    fs::write(&input, format!("{request}\n{request}\n")).unwrap();
     let missing_driver = directory.path().join("missing-icd.json");
     // Linux AutoGraphicsApi uses Vulkan. Hide drivers in a child to test failure
     // before model allocation, including a second JSONL request on the same process.
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_bdecide"))
+    let output = Command::new(env!("CARGO_BIN_EXE_bdecide"))
         .args([
             "predict",
             "--model",
@@ -84,7 +88,7 @@ fn wgpu_matches_independent_python_answers(#[case] device: Device) {
     .unwrap();
     assert_eq!(second.metadata().device, "wgpu");
     let reference: Value =
-        serde_json::from_slice(&std::fs::read(fixtures.join("reference.json")).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(fixtures.join("reference.json")).unwrap()).unwrap();
     for case in reference["cases"].as_array().unwrap() {
         let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
         // Keep end-to-end Python parity for text prompts; native-token parity covers JSON.
@@ -147,7 +151,7 @@ fn clef_wgpu_processes_text_and_json_requests(#[case] variant: &str) {
     })
     .unwrap();
     let reference: Value =
-        serde_json::from_slice(&std::fs::read(root.join("reference.json")).unwrap()).unwrap();
+        serde_json::from_slice(&fs::read(root.join("reference.json")).unwrap()).unwrap();
     let config = Qwen3_5Config::from_pretrained(&root).unwrap();
     let processor = ClefProcessor::from_pretrained(&root, &config).unwrap();
     for case in reference["cases"].as_array().unwrap() {

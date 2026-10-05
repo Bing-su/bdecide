@@ -1,9 +1,19 @@
 //! Select a built-in model family while keeping backend initialization in one place.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
+
+use bon::{Builder, bon};
+#[cfg(feature = "cpu")]
+use burn::backend::Flex;
+use burn::tensor::backend::Backend;
+use camino::Utf8Path;
+
+#[cfg(feature = "wgpu")]
+use crate::hub::Artifacts;
 use crate::{
     DecisionModel, Error, Metadata, Request, Response, Result,
-    hub::{self, ModelSource},
-    models::{clef, laya, vev, wald},
+    hub::{Family, HubOptions, ModelSource, resolve_auto},
+    models::{clef::ClefModel, laya::LayaModel, vev::VevModel, wald::WaldModel},
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -14,7 +24,7 @@ pub enum Device {
     Auto,
 }
 
-#[derive(Debug, Clone, bon::Builder)]
+#[derive(Debug, Clone, Builder)]
 pub struct LoadOptions {
     pub source: ModelSource,
     #[builder(default)]
@@ -24,7 +34,7 @@ impl LoadOptions {
     /// Configure Hub loading, e.g. `LoadOptions::new("convaiinnovations/laya")`.
     pub fn new(repo_id: impl Into<String>) -> Self {
         Self::builder()
-            .source(ModelSource::Hub(hub::HubOptions::new(repo_id)))
+            .source(ModelSource::Hub(HubOptions::new(repo_id)))
             .build()
     }
 }
@@ -33,7 +43,7 @@ impl LoadOptions {
 pub struct AutoModel {
     model: Box<dyn DecisionModel>,
 }
-#[bon::bon]
+#[bon]
 impl AutoModel {
     /// Load and validate a checkpoint, e.g. `AutoModel::new(LoadOptions::new("repo/model"))?`.
     #[builder(start_fn = builder)]
@@ -53,7 +63,7 @@ impl AutoModel {
                 "CPU backend is disabled; enable cpu or select wgpu".into(),
             ));
         }
-        let (artifacts, family) = hub::resolve_auto(&options.source)?;
+        let (artifacts, family) = resolve_auto(&options.source)?;
         #[cfg(feature = "wgpu")]
         if matches!(options.device, Device::Wgpu | Device::Auto)
             && let Some(model) = Self::load_wgpu(&artifacts, family, options.device)?
@@ -64,12 +74,7 @@ impl AutoModel {
         {
             let mut metadata = artifacts.metadata;
             metadata.device = "cpu".into();
-            Self::load::<burn::backend::Flex>(
-                &artifacts.root,
-                &Default::default(),
-                metadata,
-                family,
-            )
+            Self::load::<Flex>(&artifacts.root, &Default::default(), metadata, family)
         }
         #[cfg(not(feature = "cpu"))]
         {
@@ -83,18 +88,13 @@ impl AutoModel {
     // Return None only when Auto may fall back to CPU; an explicitly requested
     // wgpu device must report its failure, e.g. a missing adapter or allocation panic.
     #[cfg(feature = "wgpu")]
-    fn load_wgpu(
-        artifacts: &hub::Artifacts,
-        family: hub::Family,
-        requested: Device,
-    ) -> Result<Option<Self>> {
+    fn load_wgpu(artifacts: &Artifacts, family: Family, requested: Device) -> Result<Option<Self>> {
         use burn::backend::{Wgpu, wgpu::WgpuDevice};
-        use burn::tensor::backend::Backend;
 
         let device = WgpuDevice::DefaultDevice;
         // Backend names load or reuse Burn's runtime, including a host's existing GPU.
         // Probe before allocating tensors so a missing adapter leaves no partial model.
-        if std::panic::catch_unwind(|| Wgpu::<f32, i32>::name(&device)).is_err() {
+        if catch_unwind(|| Wgpu::<f32, i32>::name(&device)).is_err() {
             return if matches!(requested, Device::Wgpu) {
                 Err(Error::Device("wgpu adapter initialization failed".into()))
             } else {
@@ -103,7 +103,7 @@ impl AutoModel {
         }
         let mut metadata = artifacts.metadata.clone();
         metadata.device = "wgpu".into();
-        let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let loaded = catch_unwind(AssertUnwindSafe(|| {
             Self::load::<Wgpu<f32, i32>>(&artifacts.root, &device, metadata, family)
         }));
         match loaded {
@@ -116,17 +116,17 @@ impl AutoModel {
         }
     }
 
-    fn load<B: burn::tensor::backend::Backend>(
-        root: &camino::Utf8Path,
+    fn load<B: Backend>(
+        root: &Utf8Path,
         device: &B::Device,
         metadata: Metadata,
-        family: hub::Family,
+        family: Family,
     ) -> Result<Self> {
         let model: Box<dyn DecisionModel> = match family {
-            hub::Family::Laya => Box::new(laya::LayaModel::<B>::load(root, device, metadata)?),
-            hub::Family::Clef => Box::new(clef::ClefModel::<B>::load(root, device, metadata)?),
-            hub::Family::Vev => Box::new(vev::VevModel::<B>::load(root, device, metadata)?),
-            hub::Family::Wald => Box::new(wald::WaldModel::<B>::load(root, device, metadata)?),
+            Family::Laya => Box::new(LayaModel::<B>::load(root, device, metadata)?),
+            Family::Clef => Box::new(ClefModel::<B>::load(root, device, metadata)?),
+            Family::Vev => Box::new(VevModel::<B>::load(root, device, metadata)?),
+            Family::Wald => Box::new(WaldModel::<B>::load(root, device, metadata)?),
         };
         Ok(Self { model })
     }
@@ -135,10 +135,9 @@ impl DecisionModel for AutoModel {
     fn predict(&self, request: &Request) -> Result<Response> {
         // Backend errors may be panics (e.g. device loss). Keep JSONL processing
         // recoverable instead of letting one backend failure terminate the CLI.
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.model.predict(request)))
-            .map_err(|_panic| {
-                Error::Inference("Burn backend failed while executing the request".into())
-            })?
+        catch_unwind(AssertUnwindSafe(|| self.model.predict(request))).map_err(|_panic| {
+            Error::Inference("Burn backend failed while executing the request".into())
+        })?
     }
     fn metadata(&self) -> &Metadata {
         self.model.metadata()

@@ -2,8 +2,11 @@
 mod cli;
 
 use std::process::ExitCode;
+
 use usage::Run;
 
+use crate::cli::Bdecide;
+
 fn main() -> ExitCode {
-    cli::Bdecide::parse().run()
+    Bdecide::parse().run()
 }

@@ -1,11 +1,12 @@
 //! Load the backbone and standalone joint head in their own checkpoint namespaces.
+use burn::tensor::backend::Backend;
+use camino::Utf8Path;
+
 use super::ClefDecisionModel;
 use crate::{
     Result,
     models::{qwen3_5, weights},
 };
-use burn::tensor::backend::Backend;
-use camino::Utf8Path;
 
 pub(super) fn load_clef<B: Backend>(
     model: &mut ClefDecisionModel<B>,

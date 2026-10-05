@@ -1,10 +1,12 @@
 //! Preserve the published Vev prompts and state rendering, e.g. ordered choice labels.
+use std::ops::Range;
+
+use serde_json::Value;
+
 use crate::{
     Error, Question, Result,
     utils::{render, sanitize},
 };
-use serde_json::Value;
-use std::ops::Range;
 
 const SYSTEM: &str = "You are a careful judge. Read the state, then answer the question about it. Reply with only the answer token, nothing else.";
 
@@ -130,19 +132,21 @@ fn desc(value: &Value) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[test]
     fn descriptions_and_state_leaves_preserve_values() {
         // Decode structured descriptions by value, e.g. nested Unicode and float exponents.
-        let value = serde_json::json!({"z": [true, null, 0.000001, -0.0], "a": "한글"});
+        let value = json!({"z": [true, null, 0.000001, -0.0], "a": "한글"});
         assert_eq!(
             serde_json::from_str::<Value>(&desc(&value).unwrap()).unwrap(),
             value
         );
         assert_eq!(desc(&Value::String("한글".into())).unwrap(), "한글");
         assert!(desc(&Value::Null).unwrap().is_empty());
-        let state = serde_json::json!({"float": 0.000001, "empty": [], "zero": -0.0});
+        let state = json!({"float": 0.000001, "empty": [], "zero": -0.0});
         for (line, expected) in render_state(&state)
             .unwrap()
             .lines()

@@ -1,10 +1,12 @@
 //! Read checkpoint configuration so model dimensions are validated before inference.
-use crate::{Error, Result, utils::activation::HiddenActivation};
+use bon::Builder;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::{Error, Result, utils::activation::HiddenActivation};
+
 /// Read ModernBERT dimensions from the checkpoint, e.g. encoder/config.json.
-#[derive(Debug, Clone, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Deserialize, Builder)]
 #[builder(on(String, into))]
 pub struct ModernBertConfig {
     #[builder(default = "modernbert")]

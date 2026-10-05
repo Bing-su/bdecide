@@ -1,7 +1,10 @@
 //! Keep Transformers-compatible source options, e.g. explicit tokens redact Debug output.
-use crate::Metadata;
-use camino::Utf8PathBuf;
 use std::fmt;
+
+use bon::Builder;
+use camino::Utf8PathBuf;
+
+use crate::Metadata;
 
 /// Mirror token=None/False/True/string without exposing credentials through Debug.
 #[derive(Clone, Default)]
@@ -25,7 +28,7 @@ impl fmt::Debug for Token {
 }
 
 /// Supply a repo ID directly, e.g. HubOptions::new("convaiinnovations/laya-multilingual").
-#[derive(Debug, Clone, bon::Builder)]
+#[derive(Debug, Clone, Builder)]
 #[builder(on(String, into))]
 pub struct HubOptions {
     pub repo_id: String,

@@ -1,4 +1,8 @@
 //! Load and evaluate Wald's calibrated one-pass decisions, e.g. effort=none.
+use burn::tensor::backend::Backend;
+use camino::Utf8Path;
+use indexmap::IndexMap;
+
 use super::{
     configuration_wald::{Temperature, WaldConfig},
     processing_wald::{option_text, prompt, render},
@@ -9,9 +13,6 @@ use crate::{
     models::qwen3_5::readout::{Readout, answer, argmax, choice_confidence, softmax},
     utils::{read_checkpoint_json, sanitize},
 };
-use burn::tensor::backend::Backend;
-use camino::Utf8Path;
-use indexmap::IndexMap;
 
 /// Reuse the loaded text readout and calibration, e.g. successive Wald requests.
 pub struct WaldModel<B: Backend> {

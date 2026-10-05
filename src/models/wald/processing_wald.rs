@@ -1,7 +1,9 @@
 //! Preserve Wald's training prompts and renderer, e.g. repeated state spans.
-use crate::{Question, utils::sanitize};
-use serde_json::Value;
 use std::ops::Range;
+
+use serde_json::Value;
+
+use crate::{Question, utils::sanitize};
 
 const REPEAT: &str = "\n\nRead the same context again before answering. This is a repeated copy, not additional events or independent evidence:\n";
 
@@ -110,9 +112,11 @@ pub(super) fn render(value: &Value, depth: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    use camino::Utf8Path;
+    use serde_json::json;
+
     use super::*;
     use crate::{Request, utils::read_checkpoint_json};
-    use camino::Utf8Path;
 
     #[test]
     fn text_prompts_match_pinned_wald_renderer() {
@@ -161,7 +165,7 @@ mod tests {
     fn number_rendering_preserves_values() {
         // Scalar spelling is flexible; retain its value, e.g. tiny floats and signed zero.
         for number in [0.000001_f64, 1e20, 1.0, -0.0] {
-            let text = render(&serde_json::json!(number), 0);
+            let text = render(&json!(number), 0);
             assert_eq!(text.parse::<f64>().unwrap().to_bits(), number.to_bits());
         }
     }

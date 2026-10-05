@@ -1,3 +1,4 @@
+use bon::Builder;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -5,7 +6,7 @@ use serde_json::Value;
 use crate::{Error, Result};
 
 /// Preserve question and criterion insertion order because it changes token IDs.
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(deny_unknown_fields)]
 pub struct Request {
     pub state: Value,
@@ -36,7 +37,7 @@ pub enum Question {
 }
 
 /// Labels change the prompt text; the returned probability always means true.
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(deny_unknown_fields)]
 pub struct NoulLabels {
     #[builder(default = "false", into)]
@@ -66,7 +67,7 @@ pub enum Truncation {
     Truncate,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
 #[serde(deny_unknown_fields)]
 pub struct PredictOptions {
     #[serde(default)]
@@ -167,8 +168,9 @@ impl Question {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case::defaults(None, None)]

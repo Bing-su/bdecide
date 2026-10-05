@@ -1,8 +1,9 @@
 //! Resolve local files and pinned Hub snapshots, e.g. every shard at one SHA.
-use super::{HubOptions, ModelSource, Token, environment::HubDefaults};
-use crate::{Error, Metadata, Result};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use hf_hub::HFClient;
+
+use super::{HubOptions, ModelSource, Token, environment::HubDefaults};
+use crate::{Error, Metadata, Result};
 
 pub(crate) struct Artifacts {
     pub root: Utf8PathBuf,
@@ -172,19 +173,23 @@ fn is_commit(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fs;
+
     use rstest::rstest;
+    use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn local_resolution_uses_the_callers_artifact_layout() {
-        let directory = tempfile::tempdir().unwrap();
+        let directory = tempdir().unwrap();
         // Keep local metadata and file lookup exact, e.g. a Korean directory with spaces.
         let root = Utf8Path::from_path(directory.path())
             .unwrap()
             .join("로컬 모델");
-        std::fs::create_dir(&root).unwrap();
+        fs::create_dir(&root).unwrap();
         let source = ModelSource::Local(root.clone());
-        std::fs::write(root.join("config.json"), "{}").unwrap();
+        fs::write(root.join("config.json"), "{}").unwrap();
         let artifacts = resolve(&source, &["config.json"]).unwrap();
         assert_eq!(artifacts.root, root);
         assert_eq!(artifacts.metadata.model_id, root.as_str());

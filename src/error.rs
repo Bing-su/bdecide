@@ -1,4 +1,7 @@
+use std::io;
+
 use camino::Utf8PathBuf;
+use hf_hub::HFError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -10,7 +13,7 @@ pub enum Error {
     Io {
         path: Utf8PathBuf,
         #[source]
-        source: std::io::Error,
+        source: io::Error,
     },
     #[error("invalid JSON: {0}")]
     Json(#[from] serde_json::Error),
@@ -23,7 +26,7 @@ pub enum Error {
     #[error("checkpoint is missing {0}")]
     MissingArtifact(Utf8PathBuf),
     #[error("Hub operation failed: {0}")]
-    Hub(#[from] Box<hf_hub::HFError>),
+    Hub(#[from] Box<HFError>),
     #[error("authentication requires a token; set HF_TOKEN or log in with the Hugging Face CLI")]
     TokenRequired,
     #[error("device unavailable: {0}")]
@@ -36,8 +39,8 @@ pub enum Error {
     Inference(String),
 }
 
-impl From<hf_hub::HFError> for Error {
-    fn from(value: hf_hub::HFError) -> Self {
+impl From<HFError> for Error {
+    fn from(value: HFError) -> Self {
         Self::Hub(Box::new(value))
     }
 }

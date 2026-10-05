@@ -1,6 +1,18 @@
 //! Select each architecture's required files, e.g. Clef's indexed weight shards.
+use hf_hub::HFError;
+
 use super::{Artifacts, ModelSource, resolve};
-use crate::{Error, Result};
+use crate::{
+    Error, Result,
+    models::{
+        clef::ClefConfig,
+        laya::REQUIRED_ARTIFACTS,
+        qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig, weights::backbone_files},
+        vev::VevConfig,
+        wald::WaldConfig,
+    },
+    utils::read_checkpoint_json,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum Family {
@@ -14,16 +26,12 @@ pub(crate) enum Family {
 pub(crate) fn resolve_auto(source: &ModelSource) -> Result<(Artifacts, Family)> {
     match resolve(source, &["rl_agent_config.json"]) {
         Ok(artifacts) => {
-            resolve_more(
-                source,
-                &artifacts,
-                &crate::models::laya::REQUIRED_ARTIFACTS[1..],
-            )?;
+            resolve_more(source, &artifacts, &REQUIRED_ARTIFACTS[1..])?;
             Ok((artifacts, Family::Laya))
         }
         Err(error) if artifact_absent(&error) => {
             let artifacts = resolve(source, &["config.json"])?;
-            crate::models::qwen3_5::Qwen3_5TextConfig::from_pretrained(&artifacts.root)?;
+            Qwen3_5TextConfig::from_pretrained(&artifacts.root)?;
             let family = match resolve_more(source, &artifacts, &["joint_head_config.json"]) {
                 Ok(()) => Family::Clef,
                 Err(error) if artifact_absent(&error) => {
@@ -67,23 +75,21 @@ pub(crate) fn resolve_wald(source: &ModelSource) -> Result<Artifacts> {
 }
 
 fn resolve_family(source: &ModelSource, artifacts: &Artifacts, family: Family) -> Result<()> {
-    crate::models::qwen3_5::Qwen3_5TextConfig::from_pretrained(&artifacts.root)?;
+    Qwen3_5TextConfig::from_pretrained(&artifacts.root)?;
     match family {
         Family::Clef => {
-            let config = crate::models::qwen3_5::Qwen3_5Config::from_pretrained(&artifacts.root)?;
-            let head: crate::models::clef::ClefConfig =
-                crate::utils::read_checkpoint_json(&artifacts.root.join("joint_head_config.json"))?;
+            let config = Qwen3_5Config::from_pretrained(&artifacts.root)?;
+            let head: ClefConfig =
+                read_checkpoint_json(&artifacts.root.join("joint_head_config.json"))?;
             head.validate(&config)?;
             resolve_more(source, artifacts, &["joint_head.safetensors"])?;
         }
         Family::Vev => {
-            let config: crate::models::vev::VevConfig =
-                crate::utils::read_checkpoint_json(&artifacts.root.join("vev.json"))?;
+            let config: VevConfig = read_checkpoint_json(&artifacts.root.join("vev.json"))?;
             config.validate()?;
         }
         Family::Wald => {
-            let config: crate::models::wald::WaldConfig =
-                crate::utils::read_checkpoint_json(&artifacts.root.join("serving.json"))?;
+            let config: WaldConfig = read_checkpoint_json(&artifacts.root.join("serving.json"))?;
             config.validate()?;
             resolve_more(source, artifacts, &["temperature.json"])?;
         }
@@ -106,7 +112,7 @@ fn resolve_family(source: &ModelSource, artifacts: &Artifacts, family: Family) -
         }
         Err(error) => return Err(error),
     }
-    let files = crate::models::qwen3_5::weights::backbone_files(&artifacts.root)?;
+    let files = backbone_files(&artifacts.root)?;
     let names: Vec<&str> = files.iter().map(String::as_str).collect();
     resolve_more(source, artifacts, &names)
 }
@@ -130,10 +136,8 @@ fn artifact_absent(error: &Error) -> bool {
     match error {
         Error::MissingArtifact(_) => true,
         Error::Hub(error) => match error.as_ref() {
-            hf_hub::HFError::EntryNotFound { .. } | hf_hub::HFError::LocalEntryNotFound { .. } => {
-                true
-            }
-            hf_hub::HFError::Http { context } => context.status.as_u16() == 404,
+            HFError::EntryNotFound { .. } | HFError::LocalEntryNotFound { .. } => true,
+            HFError::Http { context } => context.status.as_u16() == 404,
             _ => false,
         },
         _ => false,

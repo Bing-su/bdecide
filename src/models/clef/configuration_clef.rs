@@ -1,8 +1,10 @@
-use crate::{Error, Result, models::qwen3_5::Qwen3_5Config};
+use bon::Builder;
 use serde::{Deserialize, Serialize};
 
+use crate::{Error, Result, models::qwen3_5::Qwen3_5Config};
+
 /// Match `joint_head_config.json`, e.g. width=1024 for both public releases.
-#[derive(Debug, Clone, Deserialize, Serialize, bon::Builder)]
+#[derive(Debug, Clone, Deserialize, Serialize, Builder)]
 pub struct ClefConfig {
     pub hidden_size: usize,
     pub width: usize,

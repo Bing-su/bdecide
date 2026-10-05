@@ -1,12 +1,13 @@
 //! Keep Laya head configuration separate from its ModernBERT encoder dimensions.
-use crate::models::modernbert::ModernBertConfig;
-use crate::{Error, Result};
+use bon::Builder;
 use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::{Error, Result, models::modernbert::ModernBertConfig};
+
 /// Describe the Laya decision head separately from its encoder configuration.
-#[derive(Debug, Clone, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Deserialize, Builder)]
 pub struct LayaConfig {
     #[builder(into)]
     pub encoder: String,

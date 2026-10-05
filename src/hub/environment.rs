@@ -1,7 +1,15 @@
 //! Apply Python-compatible cache and credential precedence, e.g. HF_TOKEN before a file.
+use std::{
+    env::{VarError, var},
+    io::ErrorKind,
+    path::PathBuf,
+};
+
+use camino::{Utf8Path, Utf8PathBuf};
+use dirs::home_dir;
+
 use super::Token;
 use crate::{Error, Result, utils::read};
-use camino::{Utf8Path, Utf8PathBuf};
 
 pub(super) struct HubDefaults {
     pub(super) cache: Utf8PathBuf,
@@ -12,21 +20,21 @@ pub(super) struct HubDefaults {
 impl HubDefaults {
     pub(super) fn from_env(policy: &Token, cache_dir: Option<&Utf8Path>) -> Result<Self> {
         Self::resolve(
-            |key| match std::env::var(key) {
+            |key| match var(key) {
                 Ok(value) => Ok(Some(value)),
-                Err(std::env::VarError::NotPresent) => Ok(None),
-                Err(std::env::VarError::NotUnicode(_)) => Err(Error::InvalidCheckpoint(format!(
+                Err(VarError::NotPresent) => Ok(None),
+                Err(VarError::NotUnicode(_)) => Err(Error::InvalidCheckpoint(format!(
                     "{key} must contain valid UTF-8"
                 ))),
             },
-            dirs::home_dir(),
+            home_dir(),
             policy,
             cache_dir,
         )
     }
     fn resolve(
         env: impl Fn(&str) -> Result<Option<String>>,
-        home: Option<std::path::PathBuf>,
+        home: Option<PathBuf>,
         policy: &Token,
         cache_dir: Option<&Utf8Path>,
     ) -> Result<Self> {
@@ -96,7 +104,7 @@ fn read_token(
             .ok()
             .filter(|token| !token.trim().is_empty())
             .map(|token| token.trim().into())),
-        Err(Error::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(Error::Io { source, .. }) if source.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
 }
@@ -107,8 +115,12 @@ fn truthy(value: Option<String>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::{fs, path::PathBuf};
+
     use rstest::rstest;
+    use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn python_cache_precedence_and_token() {
@@ -155,10 +167,10 @@ mod tests {
 
     #[test]
     fn explicit_token_file_and_cache_do_not_require_home() {
-        let directory = tempfile::tempdir().unwrap();
+        let directory = tempdir().unwrap();
         let cache = Utf8Path::from_path(directory.path()).unwrap();
         let token_path = cache.join("token");
-        std::fs::write(&token_path, "file-token\n").unwrap();
+        fs::write(&token_path, "file-token\n").unwrap();
         // Use the chosen credential file even when no home is available.
         let env = |key: &str| Ok((key == "HF_TOKEN_PATH").then(|| token_path.to_string()));
         let config = HubDefaults::resolve(env, None, &Token::Required, Some(cache)).unwrap();
@@ -171,7 +183,7 @@ mod tests {
         use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
         // A byte such as 0xff must never redirect cache I/O to a replacement path.
-        let home = std::path::PathBuf::from(OsString::from_vec(b"/home/\xff".to_vec()));
+        let home = PathBuf::from(OsString::from_vec(b"/home/\xff".to_vec()));
         let result =
             HubDefaults::resolve(|_| Ok(None), Some(home.clone()), &Token::Anonymous, None);
         assert!(
@@ -189,7 +201,7 @@ mod tests {
 
     #[test]
     fn anonymous_and_explicit_auth_do_not_read_token_files() {
-        let directory = tempfile::tempdir().unwrap();
+        let directory = tempdir().unwrap();
         // A directory cannot be read as a token file. Unused credentials should
         // not break token=False, an explicit token, or disabled implicit auth.
         let env = |key: &str| {

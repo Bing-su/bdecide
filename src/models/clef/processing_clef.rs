@@ -1,16 +1,19 @@
+use std::ops::Range;
+
+use bon::{Builder, bon};
+use camino::Utf8Path;
+use serde_json::{Map, Value};
+use tokenizers::Tokenizer;
+
 use super::super::qwen3_5::Qwen3_5Config;
 use crate::{
     Error, Question, Request, Result, Truncation, Usage,
     utils::{load_tokenizer, render, token_ids},
 };
-use camino::Utf8Path;
-use serde_json::{Map, Value};
-use std::ops::Range;
-use tokenizers::Tokenizer;
 
 const SYSTEM_PROMPT: &str = "Read the complete state and schema. Decide every field jointly. Each answer must be exactly one of that field's allowed options.";
 
-#[derive(Debug, bon::Builder)]
+#[derive(Debug, Builder)]
 pub struct EncodedQuestion {
     #[builder(into)]
     pub question_id: String,
@@ -39,7 +42,7 @@ impl EncodedQuestion {
     }
 }
 
-#[derive(Debug, bon::Builder)]
+#[derive(Debug, Builder)]
 pub struct EncodedRecord {
     pub input_ids: Vec<u32>,
     pub questions: Vec<EncodedQuestion>,
@@ -63,7 +66,7 @@ pub struct ClefProcessor {
     vocab_size: usize,
     max_positions: usize,
 }
-#[bon::bon]
+#[bon]
 impl ClefProcessor {
     /// Load a tokenizer with validated dimensions, e.g. `ClefProcessor::new(root, &config)?`.
     #[builder(start_fn = builder)]

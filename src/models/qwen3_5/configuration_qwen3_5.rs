@@ -1,7 +1,14 @@
-use crate::{Error, Result, utils::activation::HiddenActivation};
+use bon::Builder;
+use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+use crate::{
+    Error, Result,
+    utils::{activation::HiddenActivation, read_checkpoint_json},
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Qwen3_5Config {
     #[builder(default = "qwen3_5", into)]
     pub model_type: String,
@@ -13,7 +20,7 @@ pub struct Qwen3_5Config {
 }
 
 /// Read Transformers' nested text_config without depending on the vision tower.
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(default)]
 pub struct Qwen3_5TextConfig {
     #[builder(default = "qwen3_5_text", into)]
@@ -55,8 +62,8 @@ pub struct Qwen3_5TextConfig {
     pub linear_num_key_heads: usize,
     #[builder(default = 32)]
     pub linear_num_value_heads: usize,
-    #[builder(default = serde_json::json!({"rope_type":"default", "rope_theta":10000000.0, "partial_rotary_factor":0.25}))]
-    pub rope_parameters: serde_json::Value,
+    #[builder(default = json!({"rope_type":"default", "rope_theta":10000000.0, "partial_rotary_factor":0.25}))]
+    pub rope_parameters: Value,
 }
 
 impl Default for Qwen3_5TextConfig {
@@ -67,10 +74,10 @@ impl Default for Qwen3_5TextConfig {
 
 impl Qwen3_5Config {
     /// Read the multimodal configuration, e.g. Vev's config with a nested text_config.
-    pub fn from_pretrained(root: &camino::Utf8Path) -> Result<Self> {
+    pub fn from_pretrained(root: &Utf8Path) -> Result<Self> {
         let path = root.join("config.json");
-        let value: serde_json::Value = crate::utils::read_checkpoint_json(&path)?;
-        let config: Self = match value.get("model_type").and_then(serde_json::Value::as_str) {
+        let value: Value = read_checkpoint_json(&path)?;
+        let config: Self = match value.get("model_type").and_then(Value::as_str) {
             Some("qwen3_5") => serde_json::from_value(value),
             other => {
                 return Err(Error::UnsupportedModel(format!(
@@ -97,10 +104,10 @@ impl Qwen3_5Config {
 }
 impl Qwen3_5TextConfig {
     /// Extract the text configuration like Transformers, e.g. from Vev's nested config.
-    pub fn from_pretrained(root: &camino::Utf8Path) -> Result<Self> {
+    pub fn from_pretrained(root: &Utf8Path) -> Result<Self> {
         let path = root.join("config.json");
-        let value: serde_json::Value = crate::utils::read_checkpoint_json(&path)?;
-        let text = match value.get("model_type").and_then(serde_json::Value::as_str) {
+        let value: Value = read_checkpoint_json(&path)?;
+        let text = match value.get("model_type").and_then(Value::as_str) {
             Some("qwen3_5") => value
                 .get("text_config")
                 .cloned()
@@ -127,7 +134,7 @@ impl Qwen3_5TextConfig {
         let rope = &self.rope_parameters;
         if rope
             .get("rope_type")
-            .and_then(serde_json::Value::as_str)
+            .and_then(Value::as_str)
             .unwrap_or("default")
             != "default"
         {
@@ -135,11 +142,11 @@ impl Qwen3_5TextConfig {
         }
         let factor = rope
             .get("partial_rotary_factor")
-            .and_then(serde_json::Value::as_f64)
+            .and_then(Value::as_f64)
             .unwrap_or(0.25);
         let theta = rope
             .get("rope_theta")
-            .and_then(serde_json::Value::as_f64)
+            .and_then(Value::as_f64)
             .unwrap_or(10000000.0);
         #[expect(
             clippy::cast_sign_loss,

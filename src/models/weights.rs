@@ -1,17 +1,19 @@
 //! Load PyTorch safetensors transactionally through Burn's snapshot and adapter APIs.
-use crate::{Error, Result, utils::read_checkpoint_json};
+use std::collections::{BTreeMap, BTreeSet};
+
 use burn::{
     module::{ModuleVisitor, Param, ParamId},
     store::{
         ModuleAdapter, ModuleSnapshot, ModuleStore, PyTorchToBurnAdapter, SafetensorsStore,
         TensorSnapshot,
     },
-    tensor::{Bool, Int, Tensor, TensorData, backend::Backend},
+    tensor::{Bool, Int, Shape, Tensor, TensorData, backend::Backend},
 };
 use burn_std::DType;
 use camino::Utf8Path;
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+
+use crate::{Error, Result, utils::read_checkpoint_json};
 
 #[derive(Deserialize)]
 struct WeightIndex {
@@ -163,7 +165,7 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
             let mut data = snapshot_data(&name, snapshot)?;
             // Burn parameters use rank one for scalar logits, e.g. residual_gate [1].
             if data.shape.is_empty() {
-                data.shape = burn::tensor::Shape::new([1]);
+                data.shape = Shape::new([1]);
             }
             converted.push(TensorSnapshot::from_data(
                 data,
@@ -198,13 +200,15 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
 
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use super::*;
     use burn::{
         backend::Flex,
         module::Module,
         nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig},
         store::BurnToPyTorchAdapter,
     };
+    use tempfile::tempdir;
+
+    use super::*;
 
     #[derive(Module, Debug)]
     struct Projections<B: Backend> {
@@ -220,7 +224,7 @@ mod tests {
             scale: LayerNormConfig::new(2).init(&device),
             in_proj: LinearConfig::new(2, 6).init(&device),
         };
-        let directory = tempfile::tempdir().unwrap();
+        let directory = tempdir().unwrap();
         let root = Utf8Path::from_path(directory.path()).unwrap();
         // Export real PyTorch names and layout, e.g. fused in_proj_weight [6, 2].
         source

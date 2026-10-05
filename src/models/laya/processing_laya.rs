@@ -1,12 +1,14 @@
 //! Assemble typed questions using Laya's token and truncation conventions.
+use camino::Utf8Path;
+use serde_json::Value;
+use tokenizers::Tokenizer;
+
 use super::configuration_laya::LayaConfig;
 use crate::{
     Error, Question, Request, Result, Truncation, Usage,
     models::modernbert::ModernBertConfig,
     utils::{load_tokenizer, read_checkpoint_json, render, token_ids},
 };
-use camino::Utf8Path;
-use tokenizers::Tokenizer;
 
 // Match Laya's reference head budgets; e.g. an option keeps its marker plus 48 tokens.
 const MAX_OPTION_TOKENS: usize = 48;
@@ -39,7 +41,7 @@ pub(crate) struct Batch {
 impl LayaProcessor {
     pub fn load(root: &Utf8Path, config: &LayaConfig, encoder: &ModernBertConfig) -> Result<Self> {
         let tokenizer = load_tokenizer(&root.join("tokenizer/tokenizer.json"))?;
-        let config_json: serde_json::Value =
+        let config_json: Value =
             read_checkpoint_json(&root.join("tokenizer/tokenizer_config.json"))?;
         let token = |name: &str| -> Result<(String, u32)> {
             let value = config_json

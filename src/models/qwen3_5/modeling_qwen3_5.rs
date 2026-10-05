@@ -3,11 +3,7 @@
     reason = "Match Transformers A_log in modules and generated Burn records"
 )]
 
-use super::Qwen3_5TextConfig;
-use crate::{
-    Error, Result,
-    utils::{activation::HiddenActivation, attention::attention},
-};
+use bon::bon;
 use burn::{
     module::{Initializer, Module, Param},
     nn::{
@@ -22,6 +18,17 @@ use burn::{
     },
 };
 use burn_std::s;
+use camino::Utf8Path;
+
+use super::{
+    Qwen3_5TextConfig,
+    weights::{backbone_files, backbone_name, load_causal_lm},
+};
+use crate::{
+    Error, Result,
+    models::weights,
+    utils::{activation::HiddenActivation, attention::attention},
+};
 
 /// Qwen3.5's text backbone, matching `model.language_model` in Transformers.
 #[derive(Module, Debug)]
@@ -48,7 +55,7 @@ pub struct CausalLMOutput<B: Backend> {
     pub logits: Tensor<B, 3>,
 }
 
-#[bon::bon]
+#[bon]
 impl<B: Backend> Qwen3_5ForCausalLM<B> {
     /// Initialize a tied or untied readout, e.g. Wald-4B shares embed_tokens.
     #[builder(start_fn = builder)]
@@ -69,12 +76,12 @@ impl<B: Backend> Qwen3_5ForCausalLM<B> {
     }
 
     /// Load strict text weights, e.g. a renamed Vev or Wald snapshot directory.
-    pub fn from_pretrained(root: &camino::Utf8Path, device: &B::Device) -> Result<Self> {
+    pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
         let config = Qwen3_5TextConfig::from_pretrained(root)?;
         // Load before tying so large checkpoints do not allocate random embedding tables first.
         // Both stored aliases with unequal values stay independent, as in Transformers.from_pretrained.
         let mut model = Self::init(&config, device)?;
-        super::weights::load_causal_lm(&mut model, root)?;
+        load_causal_lm(&mut model, root)?;
         Ok(model)
     }
 
@@ -206,15 +213,18 @@ impl<B: Backend> Qwen3_5ForCausalLM<B> {
 
 #[cfg(all(test, feature = "cpu"))]
 mod tying_tests {
+    use approx::abs_diff_eq;
+    use burn::backend::Flex;
+    use burn::tensor::module::embedding;
+    use camino::Utf8Path;
+
     use super::*;
 
     #[test]
     fn selected_readout_matches_forward_for_tied_and_replaced_output_weights() {
-        let root =
-            camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
+        let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
         let device = Default::default();
-        let mut model =
-            Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(&root, &device).unwrap();
+        let mut model = Qwen3_5ForCausalLM::<Flex>::from_pretrained(&root, &device).unwrap();
         let input_ids = [2u32, 3, 4];
         let answer_ids = [5u32, 0];
         for independent in [false, true] {
@@ -228,14 +238,13 @@ mod tying_tests {
                 Tensor::from_data(TensorData::new(vec![2u32, 3, 2, 4, 2, 3], [2, 3]), &device);
             assert_eq!(
                 model.embed_output(ids.clone()).into_data(),
-                burn::tensor::module::embedding(model.lm_head.weight.val().transpose(), ids)
-                    .into_data()
+                embedding(model.lm_head.weight.val().transpose(), ids).into_data()
             );
             let actual = model
                 .forward_selected(&input_ids, &answer_ids, &device)
                 .unwrap();
             let input = Tensor::from_data(TensorData::new(input_ids.to_vec(), [1, 3]), &device);
-            let answers = Tensor::<burn::backend::Flex, 1, Int>::from_data(
+            let answers = Tensor::<Flex, 1, Int>::from_data(
                 TensorData::new(answer_ids.to_vec(), [2]),
                 &device,
             );
@@ -248,18 +257,16 @@ mod tying_tests {
                 .to_vec::<f32>()
                 .unwrap();
             for (actual, expected) in actual.into_iter().zip(expected) {
-                assert!(approx::abs_diff_eq!(actual, expected, epsilon = 1e-6));
+                assert!(abs_diff_eq!(actual, expected, epsilon = 1e-6));
             }
         }
     }
 
     #[test]
     fn tied_readout_shares_parameter_identity_and_retie_uses_replaced_inputs() {
-        let root =
-            camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
+        let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
         let device = Default::default();
-        let mut model =
-            Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(&root, &device).unwrap();
+        let mut model = Qwen3_5ForCausalLM::<Flex>::from_pretrained(&root, &device).unwrap();
         assert_eq!(
             model.get_input_embeddings().weight.id,
             model.get_output_embeddings().weight.id
@@ -276,7 +283,7 @@ mod tying_tests {
         );
         assert_eq!(
             model.lm_head.weight.val().into_data(),
-            Tensor::<burn::backend::Flex, 2>::ones([shape[1], shape[0]], &device).into_data()
+            Tensor::<Flex, 2>::ones([shape[1], shape[0]], &device).into_data()
         );
     }
 }
@@ -362,7 +369,7 @@ struct Qwen3_5GatedDeltaNet<B: Backend> {
     activation: HiddenActivation,
 }
 
-#[bon::bon]
+#[bon]
 impl<B: Backend> Qwen3_5TextModel<B> {
     /// Reuse the input parameter for tied readout, e.g. lm_head and embed_tokens share storage.
     pub fn get_input_embeddings(&self) -> &Embedding<B> {
@@ -381,12 +388,12 @@ impl<B: Backend> Qwen3_5TextModel<B> {
     }
 
     /// Load the text backbone, e.g. extract model.language_model from Vev's checkpoint.
-    pub fn from_pretrained(root: &camino::Utf8Path, device: &B::Device) -> Result<Self> {
+    pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
         let config = Qwen3_5TextConfig::from_pretrained(root)?;
-        let files = super::weights::backbone_files(root)?;
+        let files = backbone_files(root)?;
         let mut model = Self::new(&config, device)?;
-        crate::models::weights::load(&mut model, root, &files, &[], |source| {
-            super::weights::backbone_name(source)
+        weights::load(&mut model, root, &files, &[], |source| {
+            backbone_name(source)
                 .map(|name| name.and_then(|name| name.strip_prefix("model.").map(str::to_owned)))
         })?;
         Ok(model)

@@ -1,14 +1,15 @@
 //! Mirror ModernBERT's module hierarchy while constructing tensors from configuration.
 
-use super::configuration_modernbert::ModernBertConfig;
-use crate::{
-    Result,
-    utils::{activation::HiddenActivation, attention::attend},
-};
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
     tensor::{Bool, Int, Tensor, backend::Backend},
+};
+
+use super::configuration_modernbert::ModernBertConfig;
+use crate::{
+    Result,
+    utils::{activation::HiddenActivation, attention::attend},
 };
 use projections::{ModernBertAttention, ModernBertMLP};
 
@@ -141,16 +142,23 @@ impl<B: Backend> ModernBertEncoderLayer<B> {
 
 #[cfg(test)]
 mod activation_tests {
+    #[cfg(feature = "cpu")]
+    use burn::backend::Flex;
+    #[cfg(feature = "wgpu")]
+    use burn::backend::Wgpu;
+    use burn::tensor::TensorData;
+    use burn_std::s;
+    use camino::Utf8Path;
+
     use super::*;
     use crate::{
+        Error,
         models::laya::{LayaConfig, LayaDecisionModel, weights::load_laya},
         utils::{
             activation::tests::{assert_close, reference},
             read_checkpoint_json,
         },
     };
-    use burn::tensor::TensorData;
-    use camino::Utf8Path;
 
     fn matches_python<B: Backend>() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
@@ -176,31 +184,26 @@ mod activation_tests {
                     &device,
                 ),
             );
-            let output = output
-                .slice(burn_std::s![.., length - 1..length, ..])
-                .into_data();
+            let output = output.slice(s![.., length - 1..length, ..]).into_data();
             assert_close(output, &case.modernbert, &case.name, 2e-5);
         }
         for name in ["prelu", "xielu", "unknown"] {
             encoder.hidden_activation = name.into();
             let error = ModernBertModel::<B>::init(&encoder, &device).unwrap_err();
-            assert!(
-                matches!(error, crate::Error::UnsupportedModel(_)),
-                "{error}"
-            );
+            assert!(matches!(error, Error::UnsupportedModel(_)), "{error}");
         }
     }
 
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_python_activation_options() {
-        matches_python::<burn::backend::Flex>();
+        matches_python::<Flex>();
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_python_activation_options() {
-        matches_python::<burn::backend::Wgpu<f32, i32>>();
+        matches_python::<Wgpu<f32, i32>>();
     }
 }

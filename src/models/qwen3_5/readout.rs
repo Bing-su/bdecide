@@ -1,14 +1,16 @@
 //! Share selected-token inference, e.g. Vev's Yes/No and Wald's A/B.
+use std::{collections::BTreeSet, ops::Range};
+
+use burn::tensor::backend::Backend;
+use camino::Utf8Path;
+use indexmap::IndexMap;
+use tokenizers::Tokenizer;
+
 use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
 use crate::{
     Action, Answer, Error, Question, Request, Result, Truncation, Usage,
     utils::{load_tokenizer, token_ids, tokenize},
 };
-use burn::tensor::backend::Backend;
-use camino::Utf8Path;
-use indexmap::IndexMap;
-use std::ops::Range;
-use tokenizers::Tokenizer;
 
 pub(crate) struct Readout<B: Backend> {
     pub(crate) model: Qwen3_5ForCausalLM<B>,
@@ -101,7 +103,7 @@ impl<B: Backend> Readout<B> {
             }
             // Remove state suffixes only; preserve every option and the final readout cue.
             // Repeated Wald states are shortened in alternating copies, e.g. two copies lose equally.
-            let mut remove = std::collections::BTreeSet::new();
+            let mut remove = BTreeSet::new();
             let mut remaining = dropped;
             while remaining > 0 {
                 for copy in &mut copies {
@@ -133,7 +135,7 @@ impl<B: Backend> Readout<B> {
         usage.input_tokens += input.len();
         let ids: Vec<_> = groups.iter().flatten().copied().collect();
         if groups.iter().any(Vec::is_empty)
-            || ids.iter().collect::<std::collections::BTreeSet<_>>().len() != ids.len()
+            || ids.iter().collect::<BTreeSet<_>>().len() != ids.len()
         {
             return Err(Error::InvalidCheckpoint(
                 "answer token groups must be nonempty and distinct".into(),

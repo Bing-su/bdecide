@@ -13,8 +13,8 @@ mod response;
 mod utils;
 
 pub use error::{Error, Result};
-pub use models::{AutoModel, DecisionModel, Device, LoadOptions};
 pub use models::{
+    AutoModel, DecisionModel, Device, LoadOptions,
     clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor},
     laya::{LayaConfig, LayaDecisionModel, LayaModel},
     modernbert::ModernBertConfig,

@@ -1,8 +1,10 @@
 //! Select parameterless Transformers activations without changing checkpoint tensors.
 
-use crate::{Error, Result};
+use std::{f64::consts::SQRT_2, str::FromStr};
+
 use burn::tensor::{Tensor, activation, backend::Backend};
-use std::str::FromStr;
+
+use crate::{Error, Result};
 
 /// Keep activation math independent of model gating, e.g. GEGLU's split and multiply.
 #[derive(Debug, Clone, Copy)]
@@ -70,9 +72,7 @@ impl HiddenActivation {
     pub(crate) fn forward<B: Backend, const D: usize>(self, input: Tensor<B, D>) -> Tensor<B, D> {
         match self {
             Self::Gelu => activation::gelu(input),
-            Self::GeluPython => {
-                input.clone() * 0.5 * ((input / core::f64::consts::SQRT_2).erf() + 1.0)
-            }
+            Self::GeluPython => input.clone() * 0.5 * ((input / SQRT_2).erf() + 1.0),
             Self::Gelu10 => activation::gelu(input).clamp(-10.0, 10.0),
             Self::GeluTanh => activation::gelu_approximate(input),
             // Square once to reduce shared handles while retaining FastGELU's constant.
@@ -90,7 +90,7 @@ impl HiddenActivation {
                     reason = "Match Transformers' rounded Laplace mu, not exact 1/sqrt(2)"
                 )]
                 const MU: f64 = 0.707107;
-                (((input - MU) / (0.282095 * core::f64::consts::SQRT_2)).erf() + 1.0) * 0.5
+                (((input - MU) / (0.282095 * SQRT_2)).erf() + 1.0) * 0.5
             }
             Self::LeakyRelu => activation::leaky_relu(input, 0.01),
             Self::Linear => input,
@@ -124,11 +124,17 @@ fn softplus<B: Backend, const D: usize>(input: Tensor<B, D>) -> Tensor<B, D> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
     use approx::{abs_diff_eq, assert_relative_eq};
+    #[cfg(feature = "cpu")]
+    use burn::backend::Flex;
+    #[cfg(feature = "wgpu")]
+    use burn::backend::Wgpu;
     use burn::tensor::TensorData;
     use camino::Utf8Path;
     use serde::Deserialize;
+
+    use super::*;
+    use crate::utils::read_checkpoint_json;
 
     #[derive(Deserialize)]
     pub(crate) struct Reference {
@@ -146,7 +152,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn reference() -> Reference {
-        crate::utils::read_checkpoint_json(
+        read_checkpoint_json(
             &Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/fixtures/activation-reference.json"),
         )
@@ -206,13 +212,13 @@ pub(crate) mod tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_python_activations() {
-        matches_python::<burn::backend::Flex>();
+        matches_python::<Flex>();
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_python_activations() {
-        matches_python::<burn::backend::Wgpu<f32, i32>>();
+        matches_python::<Wgpu<f32, i32>>();
     }
 }

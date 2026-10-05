@@ -1,14 +1,18 @@
 #![cfg(feature = "cpu")]
-use bdecide::{
-    AutoModel, DecisionModel, Device, Error, LoadOptions, Request,
-    hub::{HubOptions, ModelSource},
-};
+use std::fs;
+
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
+use tempfile::tempdir;
 use wiremock::{
     Mock, MockServer, ResponseTemplate,
     matchers::{method, path},
+};
+
+use bdecide::{
+    AutoModel, DecisionModel, Device, Error, LoadOptions, Request,
+    hub::{HubOptions, ModelSource, Token},
 };
 
 fn fixture(variant: &str) -> Utf8PathBuf {
@@ -42,7 +46,7 @@ fn auto_model_dispatches_from_artifacts_and_reuses_weights(#[case] variant: &str
 #[tokio::test]
 async fn sharded_hub_load_is_pinned_and_works_offline() {
     let server = MockServer::start().await;
-    let cache = tempfile::tempdir().unwrap();
+    let cache = tempdir().unwrap();
     let sha = "1234567890123456789012345678901234567890";
     let files = [
         "config.json",
@@ -61,7 +65,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
         let response = ResponseTemplate::new(200)
             .insert_header("X-Repo-Commit", sha)
             .insert_header("ETag", format!("\"{}\"", file.replace('.', "-")))
-            .set_body_bytes(std::fs::read(fixture("tiny-clef").join(file)).unwrap());
+            .set_body_bytes(fs::read(fixture("tiny-clef").join(file)).unwrap());
         for verb in ["HEAD", "GET"] {
             Mock::given(method(verb))
                 .and(path(format!(
@@ -85,7 +89,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
     options.endpoint = Some(server.uri());
     options.cache_dir = Some(Utf8PathBuf::from_path_buf(cache.path().to_owned()).unwrap());
     options.subfolder = Some("nested".into());
-    options.token = bdecide::hub::Token::Anonymous;
+    options.token = Token::Anonymous;
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Hub(options.clone()),
         device: Device::Cpu,
@@ -117,7 +121,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
 
 #[test]
 fn invalid_head_and_unsafe_index_fail_before_inference() {
-    let directory = tempfile::tempdir().unwrap();
+    let directory = tempdir().unwrap();
     let root = Utf8Path::from_path(directory.path()).unwrap();
     for file in [
         "config.json",
@@ -129,7 +133,7 @@ fn invalid_head_and_unsafe_index_fail_before_inference() {
         "model-00001-of-00002.safetensors",
         "model-00002-of-00002.safetensors",
     ] {
-        std::fs::copy(fixture("tiny-clef").join(file), root.join(file)).unwrap();
+        fs::copy(fixture("tiny-clef").join(file), root.join(file)).unwrap();
     }
     let load = || {
         AutoModel::from_pretrained(LoadOptions {
@@ -137,28 +141,27 @@ fn invalid_head_and_unsafe_index_fail_before_inference() {
             device: Device::Cpu,
         })
     };
-    std::fs::write(
+    fs::write(
         root.join("model.safetensors.index.json"),
         r#"{"weight_map":{"lm_head.weight":"../../outside.safetensors"}}"#,
     )
     .unwrap();
     assert!(matches!(load(), Err(Error::InvalidCheckpoint(_))));
-    std::fs::copy(
+    fs::copy(
         fixture("tiny-clef").join("model.safetensors.index.json"),
         root.join("model.safetensors.index.json"),
     )
     .unwrap();
     let mut config: Value =
-        serde_json::from_slice(&std::fs::read(root.join("joint_head_config.json")).unwrap())
-            .unwrap();
+        serde_json::from_slice(&fs::read(root.join("joint_head_config.json")).unwrap()).unwrap();
     config["width"] = json!(32);
-    std::fs::write(
+    fs::write(
         root.join("joint_head_config.json"),
         serde_json::to_vec(&config).unwrap(),
     )
     .unwrap();
     assert!(matches!(load(), Err(Error::Weights(_))));
-    std::fs::copy(
+    fs::copy(
         fixture("tiny-clef").join("joint_head_config.json"),
         root.join("joint_head_config.json"),
     )
@@ -166,22 +169,22 @@ fn invalid_head_and_unsafe_index_fail_before_inference() {
     // An index may name existing files while omitting half the actual parameters.
     // Loading only shard one must fail instead of retaining random layer weights.
     let mut index: Value =
-        serde_json::from_slice(&std::fs::read(root.join("model.safetensors.index.json")).unwrap())
+        serde_json::from_slice(&fs::read(root.join("model.safetensors.index.json")).unwrap())
             .unwrap();
     for file in index["weight_map"].as_object_mut().unwrap().values_mut() {
         *file = json!("model-00001-of-00002.safetensors");
     }
-    std::fs::write(
+    fs::write(
         root.join("model.safetensors.index.json"),
         serde_json::to_vec(&index).unwrap(),
     )
     .unwrap();
     assert!(matches!(load(), Err(Error::Weights(_))));
-    std::fs::copy(
+    fs::copy(
         fixture("tiny-clef").join("model.safetensors.index.json"),
         root.join("model.safetensors.index.json"),
     )
     .unwrap();
-    std::fs::remove_file(root.join("model-00002-of-00002.safetensors")).unwrap();
+    fs::remove_file(root.join("model-00002-of-00002.safetensors")).unwrap();
     assert!(matches!(load(), Err(Error::MissingArtifact(_))));
 }

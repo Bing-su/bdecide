@@ -1,12 +1,13 @@
+use indexmap::IndexMap;
+use serde_json::{Value, json};
+
 use bdecide::{
-    Action, Answer, ClefConfig, LayaConfig, LoadOptions, Metadata, ModernBertConfig, NoulLabels,
-    PredictOptions, Question, Qwen3_5Config, Qwen3_5TextConfig, Request, Response, Truncation,
-    Usage,
+    Action, Answer, ClefConfig, Error, LayaConfig, LoadOptions, Metadata, ModernBertConfig,
+    NoulLabels, PredictOptions, Question, Qwen3_5Config, Qwen3_5TextConfig, Request, Response,
+    Truncation, Usage,
     hub::{HubOptions, HubOptionsBuilder, ModelSource, Token},
     models::clef::{EncodedQuestion, EncodedRecord},
 };
-use indexmap::IndexMap;
-use serde_json::{Value, json};
 
 #[test]
 fn request_builders_preserve_defaults_and_question_order() {
@@ -65,10 +66,7 @@ fn request_builders_preserve_defaults_and_question_order() {
                 .build(),
         )
         .build();
-    assert!(matches!(
-        request.validate(),
-        Err(bdecide::Error::InvalidRequest(_))
-    ));
+    assert!(matches!(request.validate(), Err(Error::InvalidRequest(_))));
 }
 
 #[test]
@@ -233,14 +231,17 @@ fn configuration_builders_match_checkpoint_defaults() {
 
 #[cfg(feature = "cpu")]
 mod cpu {
-    use super::*;
-    use bdecide::{
-        AutoModel, ClefDecisionModel, ClefModel, ClefProcessor, DecisionModel, LayaDecisionModel,
-        LayaModel, Qwen3_5TextModel,
-    };
+    use std::fs;
+
     use burn::backend::Flex;
     use camino::{Utf8Path, Utf8PathBuf};
     use rstest::rstest;
+
+    use super::*;
+    use bdecide::{
+        AutoModel, ClefDecisionModel, ClefModel, ClefProcessor, DecisionModel, Error,
+        LayaDecisionModel, LayaModel, Qwen3_5TextModel,
+    };
 
     fn fixture(name: &str) -> Utf8PathBuf {
         Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -321,7 +322,7 @@ mod cpu {
         // Route named arguments through initialization checks, e.g. reject zero hidden size.
         let root = fixture("tiny-clef");
         let backbone: Qwen3_5Config =
-            serde_json::from_slice(&std::fs::read(root.join("config.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(root.join("config.json")).unwrap()).unwrap();
         let direct = ClefProcessor::new(&root, &backbone).unwrap();
         let built = ClefProcessor::builder()
             .root(&root)
@@ -338,7 +339,7 @@ mod cpu {
         );
         let device = Default::default();
         let clef: ClefConfig =
-            serde_json::from_slice(&std::fs::read(root.join("joint_head_config.json")).unwrap())
+            serde_json::from_slice(&fs::read(root.join("joint_head_config.json")).unwrap())
                 .unwrap();
         ClefDecisionModel::<Flex>::new(&clef, &backbone, &device).unwrap();
         ClefDecisionModel::<Flex>::builder()
@@ -359,7 +360,7 @@ mod cpu {
                 .config(&invalid)
                 .device(&device)
                 .build(),
-            Err(bdecide::Error::InvalidCheckpoint(_))
+            Err(Error::InvalidCheckpoint(_))
         ));
         let invalid_clef = ClefConfig::new(0, 8, 1, 1, 2, 16);
         assert!(matches!(
@@ -368,15 +369,13 @@ mod cpu {
                 .backbone(&backbone)
                 .device(&device)
                 .build(),
-            Err(bdecide::Error::InvalidCheckpoint(_))
+            Err(Error::InvalidCheckpoint(_))
         ));
         let root = fixture("tiny-laya");
         let laya: LayaConfig =
-            serde_json::from_slice(&std::fs::read(root.join("rl_agent_config.json")).unwrap())
-                .unwrap();
+            serde_json::from_slice(&fs::read(root.join("rl_agent_config.json")).unwrap()).unwrap();
         let encoder: ModernBertConfig =
-            serde_json::from_slice(&std::fs::read(root.join("encoder/config.json")).unwrap())
-                .unwrap();
+            serde_json::from_slice(&fs::read(root.join("encoder/config.json")).unwrap()).unwrap();
         LayaDecisionModel::<Flex>::new(&laya, &encoder, &device).unwrap();
         LayaDecisionModel::<Flex>::builder()
             .config(&laya)
@@ -391,7 +390,7 @@ mod cpu {
                 .encoder(&invalid_encoder)
                 .device(&device)
                 .build(),
-            Err(bdecide::Error::InvalidCheckpoint(_))
+            Err(Error::InvalidCheckpoint(_))
         ));
     }
 }

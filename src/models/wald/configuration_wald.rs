@@ -1,9 +1,12 @@
 //! Validate Wald's serving budget and calibration, e.g. choice|3-4 temperatures.
-use crate::{Error, Question, Result, utils::read_checkpoint_json};
+use std::iter::once;
+
 use camino::Utf8Path;
 use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_json::Value;
+
+use crate::{Error, Question, Result, utils::read_checkpoint_json};
 
 #[derive(Deserialize)]
 pub(crate) struct WaldConfig {
@@ -47,7 +50,7 @@ impl Temperature {
         let value: Value = read_checkpoint_json(&root.join("temperature.json"))?;
         let table: Self = serde_json::from_value(value.get("A").unwrap_or(&value).clone())
             .map_err(|error| Error::InvalidCheckpoint(format!("Wald temperature.json: {error}")))?;
-        if std::iter::once(table.single)
+        if once(table.single)
             .chain(table.buckets.values().map(|bucket| bucket.temperature))
             .any(|value| !value.is_finite() || value <= 0.0)
         {

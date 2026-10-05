@@ -1,22 +1,33 @@
 #![cfg(test)]
 
-use bdecide::{
-    AutoModel, DecisionModel, Device, LoadOptions, Question, Qwen3_5ForCausalLM, Qwen3_5TextConfig,
-    Request, hub::ModelSource,
-};
+use std::fs;
+
+use approx::abs_diff_eq;
 #[cfg(feature = "cpu")]
-use bdecide::{
-    Error, Truncation,
-    hub::{HubOptions, Token},
-};
+use burn::backend::Flex;
+#[cfg(feature = "wgpu")]
+use burn::backend::Wgpu;
 use burn::tensor::{Int, Tensor, TensorData, backend::Backend};
 use camino::{Utf8Path, Utf8PathBuf};
 #[cfg(feature = "cpu")]
 use indexmap::IndexMap;
 use rstest::rstest;
+#[cfg(feature = "cpu")]
+use serde_json::Map;
 use serde_json::Value;
 #[cfg(feature = "cpu")]
 use serde_json::json;
+use tempfile::tempdir;
+
+use bdecide::{
+    AutoModel, DecisionModel, Device, LoadOptions, Question, Qwen3_5ForCausalLM, Qwen3_5TextConfig,
+    Qwen3_5TextModel, Request, hub::ModelSource,
+};
+#[cfg(feature = "cpu")]
+use bdecide::{
+    Error, Qwen3_5Config, Truncation,
+    hub::{HubOptions, Token},
+};
 
 #[rstest]
 #[case("tiny-vev-4b", true, 2560)]
@@ -27,9 +38,9 @@ fn reads_pinned_release_dimensions(
     #[case] tied: bool,
     #[case] hidden: usize,
 ) {
-    let directory = tempfile::tempdir().unwrap();
+    let directory = tempdir().unwrap();
     let root = Utf8Path::from_path(directory.path()).unwrap();
-    std::fs::copy(
+    fs::copy(
         fixture(variant).join("release-config.json"),
         root.join("config.json"),
     )
@@ -72,7 +83,7 @@ fn assert_tensor<B: Backend>(actual: Tensor<B, 3>, expected: &Value) {
         .zip(expected.into_iter().flatten().flatten())
     {
         assert!(
-            approx::abs_diff_eq!(actual, expected, epsilon = 5e-4),
+            abs_diff_eq!(actual, expected, epsilon = 5e-4),
             "{actual} != {expected}"
         );
     }
@@ -117,7 +128,7 @@ fn verify_native_forward<B: Backend>(
         );
         assert_tensor(output.logits.select(2, tokens.clone()), &expected);
     }
-    let base = bdecide::Qwen3_5TextModel::<B>::from_pretrained(root, device).unwrap();
+    let base = Qwen3_5TextModel::<B>::from_pretrained(root, device).unwrap();
     assert_eq!(base.config.model_type, "qwen3_5_text");
     assert_tensor(base.forward(ids.clone()), &native["last_hidden_state"]);
     let defaults = model.forward_builder().input_ids(ids).call().unwrap();
@@ -138,7 +149,7 @@ fn compare(actual: &Value, expected: &Value) {
             }
         }
         Value::Number(number) => assert!(
-            approx::abs_diff_eq!(
+            abs_diff_eq!(
                 actual.as_f64().unwrap(),
                 number.as_f64().unwrap(),
                 epsilon = 5e-4
@@ -162,9 +173,8 @@ fn verify<B: Backend>(variant: &str, device: Device, backend_device: &B::Device)
         "vev"
     };
     assert_eq!(model.metadata().architecture, expected_family);
-    let reference: Value =
-        serde_json::from_slice(&std::fs::read(root.join("reference.json")).unwrap())
-            .expect("reference fixtures and predictions must be valid");
+    let reference: Value = serde_json::from_slice(&fs::read(root.join("reference.json")).unwrap())
+        .expect("reference fixtures and predictions must be valid");
     let backbone = Qwen3_5ForCausalLM::<B>::from_pretrained(&root, backend_device)
         .expect("reference fixtures and predictions must be valid");
     verify_native_forward(&backbone, &root, &reference, backend_device);
@@ -219,7 +229,7 @@ fn verify<B: Backend>(variant: &str, device: Device, backend_device: &B::Device)
             let logits = selected_logits(&backbone, &input_ids, &answer_ids, backend_device);
             for (actual, expected) in logits.into_iter().zip(expected) {
                 assert!(
-                    approx::abs_diff_eq!(actual, expected, epsilon = 5e-4),
+                    abs_diff_eq!(actual, expected, epsilon = 5e-4),
                     "{variant}: {actual} != {expected}"
                 );
             }
@@ -237,7 +247,7 @@ fn verify<B: Backend>(variant: &str, device: Device, backend_device: &B::Device)
 #[case("tiny-vev-9b")]
 #[case("tiny-wald")]
 fn cpu_matches_upstream_text_decisions(#[case] variant: &str) {
-    verify::<burn::backend::Flex>(variant, Device::Cpu, &Default::default());
+    verify::<Flex>(variant, Device::Cpu, &Default::default());
 }
 
 #[cfg(feature = "wgpu")]
@@ -247,7 +257,7 @@ fn cpu_matches_upstream_text_decisions(#[case] variant: &str) {
 #[case("tiny-wald")]
 #[ignore = "requires a wgpu adapter"]
 fn wgpu_matches_upstream_text_decisions(#[case] variant: &str) {
-    verify::<burn::backend::Wgpu<f32, i32>>(variant, Device::Wgpu, &Default::default());
+    verify::<Wgpu<f32, i32>>(variant, Device::Wgpu, &Default::default());
 }
 
 #[cfg(feature = "cpu")]
@@ -303,7 +313,7 @@ async fn hub_protocol_artifacts_stay_pinned_and_load_offline(#[case] variant: &s
         matchers::{method, path},
     };
     let server = MockServer::start().await;
-    let cache = tempfile::tempdir().unwrap();
+    let cache = tempdir().unwrap();
     let sha = "1234567890123456789012345678901234567890";
     let mut files = vec!["config.json", "tokenizer.json", "tokenizer_config.json"];
     if variant == "tiny-wald" {
@@ -322,7 +332,7 @@ async fn hub_protocol_artifacts_stay_pinned_and_load_offline(#[case] variant: &s
         let response = ResponseTemplate::new(200)
             .insert_header("X-Repo-Commit", sha)
             .insert_header("ETag", format!("\"{}\"", file.replace('.', "-")))
-            .set_body_bytes(std::fs::read(fixture(variant).join(file)).unwrap());
+            .set_body_bytes(fs::read(fixture(variant).join(file)).unwrap());
         for verb in ["HEAD", "GET"] {
             Mock::given(method(verb))
                 .and(path(format!(
@@ -399,14 +409,14 @@ fn transformers_embedding_aliases_preserve_strict_loading(#[case] variant: &str)
     } else {
         "tiny-vev-4b"
     };
-    let directory = tempfile::tempdir().unwrap();
+    let directory = tempdir().unwrap();
     let root = Utf8Path::from_path(directory.path()).unwrap();
-    std::fs::copy(
+    fs::copy(
         fixture(fixture_name).join("config.json"),
         root.join("config.json"),
     )
     .unwrap();
-    let bytes = std::fs::read(fixture(fixture_name).join("model.safetensors")).unwrap();
+    let bytes = fs::read(fixture(fixture_name).join("model.safetensors")).unwrap();
     let header_len = usize::try_from(u64::from_le_bytes(bytes[..8].try_into().unwrap())).unwrap();
     let header: Value = serde_json::from_slice(&bytes[8..8 + header_len]).unwrap();
     let body = &bytes[8 + header_len..];
@@ -455,7 +465,7 @@ fn transformers_embedding_aliases_preserve_strict_loading(#[case] variant: &str)
         _ => panic!("unknown checkpoint test variant: {variant}"),
     }
     let mut data = Vec::new();
-    let mut header = serde_json::Map::new();
+    let mut header = Map::new();
     for (name, (mut metadata, bytes)) in tensors {
         metadata["data_offsets"] = json!([data.len(), data.len() + bytes.len()]);
         header.insert(name, metadata);
@@ -466,9 +476,8 @@ fn transformers_embedding_aliases_preserve_strict_loading(#[case] variant: &str)
     let mut output = (header.len() as u64).to_le_bytes().to_vec();
     output.extend(header);
     output.extend(data);
-    std::fs::write(root.join("model.safetensors"), output).unwrap();
-    let load =
-        || Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(root, &Default::default());
+    fs::write(root.join("model.safetensors"), output).unwrap();
+    let load = || Qwen3_5ForCausalLM::<Flex>::from_pretrained(root, &Default::default());
     if matches!(variant, "missing" | "nan" | "dtype" | "untied_missing") {
         assert!(matches!(load(), Err(Error::Weights(_))));
         return;
@@ -478,25 +487,22 @@ fn transformers_embedding_aliases_preserve_strict_loading(#[case] variant: &str)
         // Transformers keeps both unequal tensors even with tie_word_embeddings=true.
         // Loading the same values with an explicit untied config must produce identical logits.
         let mut config: Value =
-            serde_json::from_slice(&std::fs::read(root.join("config.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(root.join("config.json")).unwrap()).unwrap();
         config["tie_word_embeddings"] = json!(false);
         config["text_config"]["tie_word_embeddings"] = json!(false);
-        std::fs::write(
+        fs::write(
             root.join("config.json"),
             serde_json::to_vec(&config).unwrap(),
         )
         .unwrap();
         load().unwrap()
     } else {
-        Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(
-            &fixture(fixture_name),
-            &Default::default(),
-        )
-        .unwrap()
+        Qwen3_5ForCausalLM::<Flex>::from_pretrained(&fixture(fixture_name), &Default::default())
+            .unwrap()
     };
     let expected = selected_logits(&expected, &[2, 3, 4], &[0, 5], &Default::default());
     for (actual, expected) in actual.into_iter().zip(expected) {
-        assert!(approx::abs_diff_eq!(actual, expected, epsilon = 1e-6));
+        assert!(abs_diff_eq!(actual, expected, epsilon = 1e-6));
     }
 }
 
@@ -509,31 +515,28 @@ fn causal_lm_extracts_text_config_without_inheriting_wrapper_tying(
     #[case] root_tied: bool,
     #[case] text_tied: bool,
 ) {
-    let directory = tempfile::tempdir().unwrap();
+    let directory = tempdir().unwrap();
     let root = Utf8Path::from_path(directory.path()).unwrap();
     let mut config: Value =
-        serde_json::from_slice(&std::fs::read(fixture(variant).join("config.json")).unwrap())
-            .unwrap();
+        serde_json::from_slice(&fs::read(fixture(variant).join("config.json")).unwrap()).unwrap();
     config["tie_word_embeddings"] = json!(root_tied);
-    std::fs::write(
+    fs::write(
         root.join("config.json"),
         serde_json::to_vec(&config).unwrap(),
     )
     .unwrap();
-    std::fs::copy(
+    fs::copy(
         fixture(variant).join("model.safetensors"),
         root.join("model.safetensors"),
     )
     .unwrap();
     let text = Qwen3_5TextConfig::from_pretrained(root).unwrap();
-    let wrapper = bdecide::Qwen3_5Config::from_pretrained(root).unwrap();
+    let wrapper = Qwen3_5Config::from_pretrained(root).unwrap();
     assert_eq!(text.tie_word_embeddings, text_tied);
     assert_eq!(wrapper.tie_word_embeddings, root_tied);
     // Wrapper and text settings are independent, e.g. constructing a wrapper keeps its false default.
-    assert!(!bdecide::Qwen3_5Config::new(text).tie_word_embeddings);
-    let model =
-        Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(root, &Default::default())
-            .unwrap();
+    assert!(!Qwen3_5Config::new(text).tie_word_embeddings);
+    let model = Qwen3_5ForCausalLM::<Flex>::from_pretrained(root, &Default::default()).unwrap();
     assert_eq!(model.config.tie_word_embeddings, text_tied);
     assert_eq!(
         model.get_input_embeddings().weight.id == model.get_output_embeddings().weight.id,

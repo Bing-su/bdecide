@@ -1,7 +1,8 @@
+use bon::Builder;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(on(String, into))]
 pub struct Metadata {
     pub model_id: String,
@@ -27,7 +28,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Response {
     #[builder(into)]
     pub model: String,
@@ -52,7 +53,7 @@ impl Response {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Builder)]
 #[builder(on(_, default))]
 pub struct Usage {
     pub input_tokens: usize,
@@ -72,7 +73,7 @@ impl Usage {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Action {
     pub act_probability: f64,
 }

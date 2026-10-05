@@ -1,11 +1,14 @@
 //! Share checkpoint file handling, e.g. report malformed JSON with its artifact path.
 
-use crate::{Error, Result};
+use std::fs;
+
 use camino::Utf8Path;
 use serde::de::DeserializeOwned;
 
+use crate::{Error, Result};
+
 pub(crate) fn read(path: &Utf8Path) -> Result<Vec<u8>> {
-    std::fs::read(path).map_err(|source| Error::Io {
+    fs::read(path).map_err(|source| Error::Io {
         path: path.into(),
         source,
     })
