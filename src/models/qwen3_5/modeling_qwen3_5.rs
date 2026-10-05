@@ -1,6 +1,11 @@
+#![expect(
+    non_snake_case,
+    reason = "Match Transformers A_log in modules and generated Burn records"
+)]
+
 use super::Qwen3_5TextConfig;
 use crate::{
-    Result,
+    Error, Result,
     utils::{activation::HiddenActivation, attention::attention},
 };
 use burn::{
@@ -24,6 +29,246 @@ pub struct Qwen3_5TextModel<B: Backend> {
     embed_tokens: Embedding<B>,
     layers: Vec<Qwen3_5DecoderLayer<B>>,
     norm: Qwen3_5RMSNorm<B>,
+    #[module(skip)]
+    pub config: Qwen3_5TextConfig,
+}
+
+/// Match Transformers' text-only causal LM, e.g. model.embed_tokens and lm_head.
+#[derive(Module, Debug)]
+pub struct Qwen3_5ForCausalLM<B: Backend> {
+    model: Qwen3_5TextModel<B>,
+    lm_head: Linear<B>,
+    #[module(skip)]
+    pub config: Qwen3_5TextConfig,
+}
+
+/// Return vocabulary logits as a tensor, e.g. output.logits has [batch, sequence, vocab].
+#[derive(Debug, Clone)]
+pub struct CausalLMOutput<B: Backend> {
+    pub logits: Tensor<B, 3>,
+}
+
+#[bon::bon]
+impl<B: Backend> Qwen3_5ForCausalLM<B> {
+    /// Initialize a tied or untied readout, e.g. Wald-4B shares embed_tokens.
+    #[builder(start_fn = builder)]
+    pub fn new(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
+        let mut model = Self::init(config, device)?;
+        model.tie_weights();
+        Ok(model)
+    }
+
+    fn init(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
+        Ok(Self {
+            model: Qwen3_5TextModel::new(config, device)?,
+            lm_head: LinearConfig::new(config.hidden_size, config.vocab_size)
+                .with_bias(false)
+                .init(device),
+            config: config.clone(),
+        })
+    }
+
+    /// Load strict text weights, e.g. a renamed Vev or Wald snapshot directory.
+    pub fn from_pretrained(root: &camino::Utf8Path, device: &B::Device) -> Result<Self> {
+        let config = Qwen3_5TextConfig::from_pretrained(root)?;
+        let files = super::weights::backbone_files(root)?;
+        let embeddings =
+            super::weights::embedding_weights(root, &files, config.tie_word_embeddings)?;
+        // Load before tying so large checkpoints do not allocate random embedding tables first.
+        // Both stored aliases with unequal values stay independent, as in Transformers.from_pretrained.
+        let mut model = Self::init(&config, device)?;
+        let aliases: &[(&str, &str)] = if embeddings.is_tied() {
+            &[("lm_head.weight", "model.embed_tokens.weight")]
+        } else {
+            &[]
+        };
+        super::weights::load(&mut model, root, &files, aliases, |_, name| {
+            embeddings.map_name(name)
+        })?;
+        if embeddings.is_tied() {
+            model.tie_weights();
+        }
+        Ok(model)
+    }
+
+    /// Access the input table, e.g. get_input_embeddings().weight.
+    pub fn get_input_embeddings(&self) -> &Embedding<B> {
+        self.model.get_input_embeddings()
+    }
+
+    /// Replace the input module, e.g. call tie_weights afterward to reattach lm_head.
+    pub fn set_input_embeddings(&mut self, embeddings: Embedding<B>) {
+        self.model.set_input_embeddings(embeddings);
+    }
+
+    /// Access the vocabulary projection, e.g. get_output_embeddings().weight.
+    pub fn get_output_embeddings(&self) -> &Linear<B> {
+        &self.lm_head
+    }
+
+    /// Replace the output projection, e.g. an independent pretrained lm_head.
+    pub fn set_output_embeddings(&mut self, embeddings: Linear<B>) {
+        self.lm_head = embeddings;
+    }
+
+    /// Share the same parameter ID, e.g. after replacing inputs and calling tie_weights().
+    pub fn tie_weights(&mut self) {
+        if self.config.tie_word_embeddings {
+            // Burn stores Linear weights transposed relative to PyTorch; preserve the shared ID.
+            self.lm_head.weight = self
+                .model
+                .embed_tokens
+                .weight
+                .clone()
+                .map(Tensor::transpose);
+        }
+    }
+
+    /// Return vocabulary logits; 0 keeps all positions, e.g. forward_builder().input_ids(ids).call().
+    #[builder(start_fn = forward_builder, finish_fn = call)]
+    pub fn forward(
+        &self,
+        input_ids: Tensor<B, 2, Int>,
+        #[builder(default)] logits_to_keep: usize,
+    ) -> Result<CausalLMOutput<B>> {
+        let [batch, length] = input_ids.dims();
+        if batch == 0 || length == 0 {
+            return Err(Error::InvalidRequest("empty causal LM input".into()));
+        }
+        let start = if logits_to_keep == 0 {
+            0
+        } else {
+            length.saturating_sub(logits_to_keep)
+        };
+        let hidden = self
+            .model
+            .forward(input_ids)
+            .slice(s![.., start..length, ..]);
+        Ok(CausalLMOutput {
+            logits: self.lm_head.forward(hidden),
+        })
+    }
+
+    /// Evaluate one unpadded prompt, e.g. read only the A/B answer rows at its final token.
+    pub(crate) fn forward_selected(
+        &self,
+        input_ids: &[u32],
+        answer_ids: &[u32],
+        device: &B::Device,
+    ) -> Result<Vec<f32>> {
+        let weights = self.lm_head.weight.val();
+        let [hidden_size, vocab] = weights.dims();
+        if input_ids.is_empty()
+            || answer_ids.is_empty()
+            || input_ids
+                .iter()
+                .chain(answer_ids)
+                .any(|&id| id as usize >= vocab)
+        {
+            return Err(Error::InvalidRequest(
+                "empty prompt/readout or token outside vocabulary".into(),
+            ));
+        }
+        let ids = Tensor::from_data(
+            TensorData::new(input_ids.to_vec(), [1, input_ids.len()]),
+            device,
+        );
+        let hidden = self
+            .model
+            .forward(ids)
+            .slice(s![0..1, input_ids.len() - 1..input_ids.len(), ..])
+            .reshape([1, hidden_size]);
+        let answers = Tensor::<B, 1, Int>::from_data(
+            TensorData::new(answer_ids.to_vec(), [answer_ids.len()]),
+            device,
+        );
+        // Select tied rows before transposing so Flex never copies the full vocabulary table,
+        // e.g. a Yes/No readout needs only two rows. Unequal stored aliases remain independent.
+        let selected = if self.lm_head.weight.id == self.model.embed_tokens.weight.id {
+            self.model
+                .embed_tokens
+                .weight
+                .val()
+                .select(0, answers)
+                .transpose()
+        } else {
+            weights.select(1, answers)
+        };
+        hidden
+            .matmul(selected)
+            .into_data()
+            .to_vec::<f32>()
+            .map_err(|error| Error::Inference(error.to_string()))
+    }
+}
+
+#[cfg(all(test, feature = "cpu"))]
+mod tying_tests {
+    use super::*;
+
+    #[test]
+    fn selected_readout_matches_forward_for_tied_and_replaced_output_weights() {
+        let root =
+            camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
+        let device = Default::default();
+        let mut model =
+            Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(&root, &device).unwrap();
+        let input_ids = [2u32, 3, 4];
+        let answer_ids = [5u32, 0];
+        for independent in [false, true] {
+            if independent {
+                // Keep the tied config but replace the output parameter, e.g. unequal stored aliases.
+                model.lm_head.weight =
+                    Param::from_tensor(Tensor::zeros(model.lm_head.weight.val().dims(), &device));
+            }
+            let actual = model
+                .forward_selected(&input_ids, &answer_ids, &device)
+                .unwrap();
+            let input = Tensor::from_data(TensorData::new(input_ids.to_vec(), [1, 3]), &device);
+            let answers = Tensor::<burn::backend::Flex, 1, Int>::from_data(
+                TensorData::new(answer_ids.to_vec(), [2]),
+                &device,
+            );
+            let expected = model
+                .forward(input, 1)
+                .unwrap()
+                .logits
+                .select(2, answers)
+                .into_data()
+                .to_vec::<f32>()
+                .unwrap();
+            for (actual, expected) in actual.into_iter().zip(expected) {
+                assert!(approx::abs_diff_eq!(actual, expected, epsilon = 1e-6));
+            }
+        }
+    }
+
+    #[test]
+    fn tied_readout_shares_parameter_identity_and_retie_uses_replaced_inputs() {
+        let root =
+            camino::Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
+        let device = Default::default();
+        let mut model =
+            Qwen3_5ForCausalLM::<burn::backend::Flex>::from_pretrained(&root, &device).unwrap();
+        assert_eq!(
+            model.get_input_embeddings().weight.id,
+            model.get_output_embeddings().weight.id
+        );
+        // Replacing a parameter requires explicit retying, as Python's tie_weights does.
+        let shape = model.model.embed_tokens.weight.val().dims();
+        let mut embeddings = model.get_input_embeddings().clone();
+        embeddings.weight = Param::from_tensor(Tensor::ones(shape, &device));
+        model.set_input_embeddings(embeddings);
+        model.tie_weights();
+        assert_eq!(
+            model.get_input_embeddings().weight.id,
+            model.get_output_embeddings().weight.id
+        );
+        assert_eq!(
+            model.lm_head.weight.val().into_data(),
+            Tensor::<burn::backend::Flex, 2>::ones([shape[1], shape[0]], &device).into_data()
+        );
+    }
 }
 
 #[derive(Module, Debug)]
@@ -86,11 +331,12 @@ struct Qwen3_5Attention<B: Backend> {
     theta: f64,
 }
 
+// Preserve external parameter spelling, e.g. linear_attn.A_log, in generated records.
 #[derive(Module, Debug)]
 struct Qwen3_5GatedDeltaNet<B: Backend> {
     conv1d: Conv1d<B>,
     dt_bias: Param<Tensor<B, 1>>,
-    a_log: Param<Tensor<B, 1>>,
+    A_log: Param<Tensor<B, 1>>,
     norm: Qwen3_5RMSNorm<B>,
     in_proj_qkv: Linear<B>,
     in_proj_z: Linear<B>,
@@ -108,10 +354,32 @@ struct Qwen3_5GatedDeltaNet<B: Backend> {
 
 #[bon::bon]
 impl<B: Backend> Qwen3_5TextModel<B> {
+    /// Reuse the input parameter for tied readout, e.g. lm_head and embed_tokens share storage.
+    pub fn get_input_embeddings(&self) -> &Embedding<B> {
+        &self.embed_tokens
+    }
+
+    /// Replace the token table, e.g. the embedding supplied by a causal LM wrapper.
+    pub fn set_input_embeddings(&mut self, embeddings: Embedding<B>) {
+        self.embed_tokens = embeddings;
+    }
+
     /// Initialize validated text dimensions, e.g. `Self::new(config, device)?`.
     #[builder(start_fn = builder)]
     pub fn new(config: &Qwen3_5TextConfig, device: &B::Device) -> Result<Self> {
         Self::init(config, device)
+    }
+
+    /// Load the text backbone, e.g. extract model.language_model from Vev's checkpoint.
+    pub fn from_pretrained(root: &camino::Utf8Path, device: &B::Device) -> Result<Self> {
+        let config = Qwen3_5TextConfig::from_pretrained(root)?;
+        let files = super::weights::backbone_files(root)?;
+        let mut model = Self::new(&config, device)?;
+        super::weights::load(&mut model, root, &files, &[], |_, source| {
+            super::weights::backbone_name(source)
+                .map(|name| name.and_then(|name| name.strip_prefix("model.").map(str::to_owned)))
+        })?;
+        Ok(model)
     }
 
     /// Initialize the Transformers module hierarchy, e.g. a tiny config for parity tests.
@@ -168,7 +436,7 @@ impl<B: Backend> Qwen3_5TextModel<B> {
                         ))
                         .init(device),
                     dt_bias: Initializer::Ones.init([config.linear_num_value_heads], device),
-                    a_log: Initializer::Zeros.init([config.linear_num_value_heads], device),
+                    A_log: Initializer::Zeros.init([config.linear_num_value_heads], device),
                     norm: norm(config.linear_value_head_dim, false),
                     in_proj_qkv: linear(hidden, total, false),
                     in_proj_z: linear(hidden, value, false),
@@ -199,6 +467,7 @@ impl<B: Backend> Qwen3_5TextModel<B> {
             embed_tokens: EmbeddingConfig::new(config.vocab_size, hidden).init(device),
             layers,
             norm: norm(hidden, true),
+            config: config.clone(),
         })
     }
 
@@ -357,7 +626,7 @@ impl<B: Backend> Qwen3_5GatedDeltaNet<B> {
             self.value_dim,
         ]);
         let beta = sigmoid(self.in_proj_b.forward(hidden.clone()));
-        let decay = (-self.a_log.val().exp().unsqueeze::<3>()
+        let decay = (-self.A_log.val().exp().unsqueeze::<3>()
             * softplus(
                 self.in_proj_a.forward(hidden.clone()) + self.dt_bias.val().unsqueeze::<3>(),
                 1.0,

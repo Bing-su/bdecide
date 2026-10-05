@@ -31,8 +31,8 @@ pub struct ClefModel<B: Backend> {
 /// Match the released Clef model while reusing the Qwen3.5 text backbone.
 #[derive(Module, Debug)]
 pub struct ClefDecisionModel<B: Backend> {
-    language_model: Qwen3_5TextModel<B>,
-    output_embeddings: Embedding<B>,
+    pub(super) language_model: Qwen3_5TextModel<B>,
+    pub(super) output_embeddings: Option<Embedding<B>>,
     head: JointSchemaHead<B>,
 }
 
@@ -132,9 +132,11 @@ impl<B: Backend> ClefDecisionModel<B> {
         let projection = || linear(hidden, width, false);
         Ok(Self {
             language_model: Qwen3_5TextModel::init(&backbone.text_config, device)?,
-            // Clef's lexical prior uses lm_head weights, not the input embedding table.
-            output_embeddings: EmbeddingConfig::new(backbone.text_config.vocab_size, hidden)
-                .init(device),
+            // Use the LM output table for the lexical prior, sharing input weights when configured.
+            // For example tie_word_embeddings=true needs no independently stored lm_head.
+            output_embeddings: (!backbone.tie_word_embeddings).then(|| {
+                EmbeddingConfig::new(backbone.text_config.vocab_size, hidden).init(device)
+            }),
             head: JointSchemaHead {
                 hidden_norm: LayerNormConfig::new(hidden).with_epsilon(1e-5).init(device),
                 memory_projection: projection(),
@@ -195,7 +197,11 @@ impl<B: Backend> ClefDecisionModel<B> {
             .head
             .hidden_norm
             .forward(self.language_model.forward(ids.clone()));
-        let lexical = self.output_embeddings.forward(ids);
+        let lexical = self
+            .output_embeddings
+            .as_ref()
+            .unwrap_or(self.language_model.get_input_embeddings())
+            .forward(ids);
         self.head.forward(hidden, lexical, record)
     }
 }

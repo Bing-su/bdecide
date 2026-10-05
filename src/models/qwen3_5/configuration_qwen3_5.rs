@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 pub struct Qwen3_5Config {
     #[builder(default = "qwen3_5", into)]
     pub model_type: String,
+    #[serde(default)]
+    #[builder(default)]
+    pub tie_word_embeddings: bool,
     #[builder(default)]
     pub text_config: Qwen3_5TextConfig,
 }
@@ -13,6 +16,8 @@ pub struct Qwen3_5Config {
 #[derive(Debug, Clone, Serialize, Deserialize, bon::Builder)]
 #[serde(default)]
 pub struct Qwen3_5TextConfig {
+    #[builder(default = "qwen3_5_text", into)]
+    pub model_type: String,
     #[builder(default = 248320)]
     pub vocab_size: usize,
     #[builder(default = 4096)]
@@ -35,6 +40,8 @@ pub struct Qwen3_5TextConfig {
     pub hidden_act: String,
     #[builder(default)]
     pub attention_bias: bool,
+    #[builder(default)]
+    pub tie_word_embeddings: bool,
     #[builder(default = 4)]
     pub full_attention_interval: usize,
     pub layer_types: Option<Vec<String>>,
@@ -59,6 +66,23 @@ impl Default for Qwen3_5TextConfig {
 }
 
 impl Qwen3_5Config {
+    /// Read the multimodal configuration, e.g. Vev's config with a nested text_config.
+    pub fn from_pretrained(root: &camino::Utf8Path) -> Result<Self> {
+        let path = root.join("config.json");
+        let value: serde_json::Value = crate::utils::read_checkpoint_json(&path)?;
+        let config: Self = match value.get("model_type").and_then(serde_json::Value::as_str) {
+            Some("qwen3_5") => serde_json::from_value(value),
+            other => {
+                return Err(Error::UnsupportedModel(format!(
+                    "Qwen3.5 config: {other:?}"
+                )));
+            }
+        }
+        .map_err(|error| Error::InvalidCheckpoint(format!("{path}: {error}")))?;
+        config.validate()?;
+        Ok(config)
+    }
+
     /// Wrap text dimensions with the Qwen3.5 architecture tag, e.g. `Qwen3_5Config::new(text)`.
     pub fn new(text_config: Qwen3_5TextConfig) -> Self {
         Self::builder().text_config(text_config).build()
@@ -72,6 +96,28 @@ impl Qwen3_5Config {
     }
 }
 impl Qwen3_5TextConfig {
+    /// Extract the text configuration like Transformers, e.g. from Vev's nested config.
+    pub fn from_pretrained(root: &camino::Utf8Path) -> Result<Self> {
+        let path = root.join("config.json");
+        let value: serde_json::Value = crate::utils::read_checkpoint_json(&path)?;
+        let text = match value.get("model_type").and_then(serde_json::Value::as_str) {
+            Some("qwen3_5") => value
+                .get("text_config")
+                .cloned()
+                .ok_or_else(|| Error::InvalidCheckpoint(format!("{path}: missing text_config")))?,
+            Some("qwen3_5_text") => value,
+            other => {
+                return Err(Error::UnsupportedModel(format!(
+                    "Qwen3.5 text config: {other:?}"
+                )));
+            }
+        };
+        let config: Self = serde_json::from_value(text)
+            .map_err(|error| Error::InvalidCheckpoint(format!("{path}: {error}")))?;
+        config.validate()?;
+        Ok(config)
+    }
+
     /// Use Transformers' text defaults, e.g. `Qwen3_5TextConfig::new()`.
     pub fn new() -> Self {
         Self::builder().build()
@@ -128,6 +174,9 @@ impl Qwen3_5TextConfig {
         })
     }
     pub fn validate(&self) -> Result<()> {
+        if self.model_type != "qwen3_5_text" {
+            return Err(Error::UnsupportedModel(self.model_type.clone()));
+        }
         self.hidden_act.parse::<HiddenActivation>()?;
         let dimensions = [
             self.vocab_size,

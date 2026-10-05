@@ -7,7 +7,7 @@ use crate::Metadata;
 use camino::Utf8PathBuf;
 use std::fmt;
 
-pub(crate) use artifacts::{Family, resolve_auto, resolve_clef};
+pub(crate) use artifacts::{Family, resolve_auto, resolve_clef, resolve_vev, resolve_wald};
 pub(crate) use download::{Artifacts, resolve};
 
 /// Mirror token=None/False/True/string without exposing credentials through Debug.

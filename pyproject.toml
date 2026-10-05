@@ -8,7 +8,7 @@ license = "BlueOak-1.0.0"
 dependencies = []
 
 [dependency-groups]
-dev = ["laya", "torch>=2.11", "transformers[torch]"]
+dev = ["laya", "pillow", "pydantic", "torch>=2.11", "transformers[torch]"]
 
 [tool.ruff.format]
 docstring-code-format = true

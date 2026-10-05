@@ -18,7 +18,11 @@ pub use models::{
     clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor},
     laya::{LayaConfig, LayaDecisionModel, LayaModel},
     modernbert::ModernBertConfig,
-    qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig, Qwen3_5TextModel},
+    qwen3_5::{
+        CausalLMOutput, Qwen3_5Config, Qwen3_5ForCausalLM, Qwen3_5TextConfig, Qwen3_5TextModel,
+    },
+    vev::VevModel,
+    wald::WaldModel,
 };
 pub use request::{NoulLabels, PredictOptions, Question, Request, Truncation};
 pub use response::{Action, Answer, Metadata, Response, Usage};

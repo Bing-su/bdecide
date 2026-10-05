@@ -1,0 +1,169 @@
+{
+  "A": {
+    "single": 1.3660402567543957,
+    "buckets": {
+      "choice|2": {
+        "temperature": 1.189207115002721,
+        "n": 36,
+        "fitted": true
+      },
+      "choice|3-4": {
+        "temperature": 1.741101126592248,
+        "n": 59,
+        "fitted": true
+      },
+      "choice|5-8": {
+        "temperature": 1.3660402567543957,
+        "n": 17,
+        "fitted": false
+      },
+      "choice|9+": {
+        "temperature": 1.0717734625362931,
+        "n": 27,
+        "fitted": true
+      },
+      "noul|2": {
+        "temperature": 1.319507910772894,
+        "n": 99,
+        "fitted": true
+      },
+      "score|5-8": {
+        "temperature": 1.3660402567543957,
+        "n": 18,
+        "fitted": false
+      }
+    },
+    "min_rows": 20,
+    "rows": 256,
+    "readout": "A",
+    "fit": "min micro mean NLL over a 161-point log grid 0.25..64, per (type, option-count bucket); buckets with fewer than 20 rows use `single`"
+  },
+  "B256": {
+    "single": 1.5157165665103978,
+    "buckets": {
+      "choice|2": {
+        "temperature": 1.8660659830736155,
+        "n": 36,
+        "fitted": true
+      },
+      "choice|3-4": {
+        "temperature": 1.8025009252216606,
+        "n": 59,
+        "fitted": true
+      },
+      "choice|5-8": {
+        "temperature": 1.5157165665103978,
+        "n": 17,
+        "fitted": false
+      },
+      "choice|9+": {
+        "temperature": 1.109569472067845,
+        "n": 27,
+        "fitted": true
+      },
+      "noul|2": {
+        "temperature": 1.4142135623730951,
+        "n": 99,
+        "fitted": true
+      },
+      "score|5-8": {
+        "temperature": 1.5157165665103978,
+        "n": 18,
+        "fitted": false
+      }
+    },
+    "min_rows": 20,
+    "rows": 256,
+    "readout": "B256",
+    "fit": "min micro mean NLL over a 161-point log grid 0.25..64, per (type, option-count bucket); buckets with fewer than 20 rows use `single`"
+  },
+  "B512": {
+    "single": 1.5691681957935015,
+    "buckets": {
+      "choice|2": {
+        "temperature": 1.9999999999999998,
+        "n": 36,
+        "fitted": true
+      },
+      "choice|3-4": {
+        "temperature": 1.8660659830736155,
+        "n": 59,
+        "fitted": true
+      },
+      "choice|5-8": {
+        "temperature": 1.5691681957935015,
+        "n": 17,
+        "fitted": false
+      },
+      "choice|9+": {
+        "temperature": 1.0352649238413776,
+        "n": 27,
+        "fitted": true
+      },
+      "noul|2": {
+        "temperature": 1.5157165665103978,
+        "n": 99,
+        "fitted": true
+      },
+      "score|5-8": {
+        "temperature": 1.5691681957935015,
+        "n": 18,
+        "fitted": false
+      }
+    },
+    "min_rows": 20,
+    "rows": 256,
+    "readout": "B512",
+    "fit": "min micro mean NLL over a 161-point log grid 0.25..64, per (type, option-count bucket); buckets with fewer than 20 rows use `single`"
+  },
+  "B": {
+    "single": 1.5691681957935015,
+    "buckets": {
+      "choice|2": {
+        "temperature": 1.9999999999999998,
+        "n": 36,
+        "fitted": true
+      },
+      "choice|3-4": {
+        "temperature": 1.8660659830736155,
+        "n": 59,
+        "fitted": true
+      },
+      "choice|5-8": {
+        "temperature": 1.5691681957935015,
+        "n": 17,
+        "fitted": false
+      },
+      "choice|9+": {
+        "temperature": 1.0352649238413776,
+        "n": 27,
+        "fitted": true
+      },
+      "noul|2": {
+        "temperature": 1.5157165665103978,
+        "n": 99,
+        "fitted": true
+      },
+      "score|5-8": {
+        "temperature": 1.5691681957935015,
+        "n": 18,
+        "fitted": false
+      }
+    },
+    "min_rows": 20,
+    "rows": 256,
+    "readout": "B512",
+    "fit": "min micro mean NLL over a 161-point log grid 0.25..64, per (type, option-count bucket); buckets with fewer than 20 rows use `single`"
+  },
+  "provenance": {
+    "model": "022D0-f7 merged",
+    "fit_source": "XL-dev calibration only",
+    "raw_output_sha256": "4af949176c1348f2bb9822ee6b309274c4e774e9581a26a031e37095dc468b3a",
+    "source_items_sha256": "ee2e8db4eed8112e629e8b7192d46efc9e9f5eb7b8d21cdd172396e0457a22c0",
+    "known_di_matches_excluded": 19,
+    "additional_hle_matches_excluded": 0,
+    "calibration_rows": 256,
+    "b_mode": "B512",
+    "method": "eval.distill_eval.fit_table micro NLL; no model weight changes; no DI labels or scores used"
+  }
+}

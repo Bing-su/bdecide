@@ -3,7 +3,7 @@
 use crate::{
     DecisionModel, Error, Metadata, Request, Response, Result,
     hub::{self, ModelSource},
-    models::{clef, laya},
+    models::{clef, laya, vev, wald},
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -125,6 +125,8 @@ impl AutoModel {
         let model: Box<dyn DecisionModel> = match family {
             hub::Family::Laya => Box::new(laya::LayaModel::<B>::load(root, device, metadata)?),
             hub::Family::Clef => Box::new(clef::ClefModel::<B>::load(root, device, metadata)?),
+            hub::Family::Vev => Box::new(vev::VevModel::<B>::load(root, device, metadata)?),
+            hub::Family::Wald => Box::new(wald::WaldModel::<B>::load(root, device, metadata)?),
         };
         Ok(Self { model })
     }

@@ -26,6 +26,33 @@ pub(crate) fn render(value: &Value) -> Result<String> {
     }
 }
 
+pub(crate) fn number_text(number: &serde_json::Number) -> String {
+    // Match Python's finite JSON/str floats, e.g. 1e-06 and -0.0, in model prompts.
+    if !number.is_f64() {
+        return number.to_string();
+    }
+    let value = number
+        .as_f64()
+        .expect("JSON floating number has an f64 representation");
+    if value != 0.0 && (value.abs() < 1e-4 || value.abs() >= 1e16) {
+        let text = format!("{value:e}");
+        let (mantissa, exponent) = text
+            .split_once('e')
+            .expect("scientific formatting contains an exponent");
+        let exponent: i32 = exponent
+            .parse()
+            .expect("scientific formatting produces an integer exponent");
+        format!("{mantissa}e{exponent:+03}")
+    } else {
+        let text = value.to_string();
+        if text.contains('.') {
+            text
+        } else {
+            format!("{text}.0")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

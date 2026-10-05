@@ -3,4 +3,4 @@ pub(crate) mod activation;
 pub(crate) mod attention;
 mod helpers;
 
-pub(crate) use helpers::{read, read_checkpoint_json, render};
+pub(crate) use helpers::{number_text, read, read_checkpoint_json, render};
