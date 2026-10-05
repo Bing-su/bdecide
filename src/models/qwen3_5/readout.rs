@@ -1,6 +1,9 @@
-//! Share tokenizer validation and selected-token inference, e.g. Vev's Yes/No and Wald's A/B.
+//! Share selected-token inference, e.g. Vev's Yes/No and Wald's A/B.
 use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
-use crate::{Action, Answer, Error, Question, Request, Result, Truncation, Usage};
+use crate::{
+    Action, Answer, Error, Question, Request, Result, Truncation, Usage,
+    utils::{load_tokenizer, token_ids, tokenize},
+};
 use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 use indexmap::IndexMap;
@@ -18,12 +21,7 @@ pub(crate) struct Readout<B: Backend> {
 impl<B: Backend> Readout<B> {
     pub(crate) fn load(root: &Utf8Path, device: &B::Device) -> Result<Self> {
         let config = Qwen3_5TextConfig::from_pretrained(root)?;
-        let mut tokenizer = Tokenizer::from_file(root.join("tokenizer.json"))
-            .map_err(|error| Error::Tokenizer(error.to_string()))?;
-        tokenizer.with_padding(None);
-        tokenizer
-            .with_truncation(None)
-            .map_err(|error| Error::Tokenizer(error.to_string()))?;
+        let tokenizer = load_tokenizer(&root.join("tokenizer.json"))?;
         Ok(Self {
             model: Qwen3_5ForCausalLM::from_pretrained(root, device)?,
             tokenizer,
@@ -34,17 +32,7 @@ impl<B: Backend> Readout<B> {
     }
 
     pub(crate) fn tokens(&self, text: &str) -> Result<Vec<u32>> {
-        let encoded = self
-            .tokenizer
-            .encode(text, false)
-            .map_err(|error| Error::Tokenizer(error.to_string()))?;
-        let ids = encoded.get_ids();
-        if ids.iter().any(|&id| id as usize >= self.vocab_size) {
-            return Err(Error::Tokenizer(
-                "token ID exceeds Qwen3.5 vocabulary".into(),
-            ));
-        }
-        Ok(ids.to_vec())
+        token_ids(&self.tokenizer, text, self.vocab_size, "Qwen3.5")
     }
 
     pub(crate) fn validate(&self, request: &Request) -> Result<usize> {
@@ -83,10 +71,7 @@ impl<B: Backend> Readout<B> {
         usage: &mut Usage,
     ) -> Result<Vec<f64>> {
         let max_len = request.options.max_len.unwrap_or(self.max_positions);
-        let encoded = self
-            .tokenizer
-            .encode(prompt, false)
-            .map_err(|error| Error::Tokenizer(error.to_string()))?;
+        let encoded = tokenize(&self.tokenizer, prompt)?;
         let mut input = encoded.get_ids().to_vec();
         let dropped = input.len().saturating_sub(max_len);
         if dropped > 0 {
@@ -252,27 +237,4 @@ pub(crate) fn choice_confidence(probabilities: &[f64]) -> f64 {
     }
     let prior = 1.0 / probabilities.len() as f64;
     (probabilities.iter().copied().fold(0.0, f64::max) - prior) / (1.0 - prior)
-}
-
-pub(crate) fn sanitize(text: &str) -> String {
-    // Caller text cannot inject Qwen special tokens, e.g. <|im_end|> becomes <¦im_end¦>.
-    let mut out = String::new();
-    let mut rest = text;
-    while let Some((prefix, suffix)) = rest.split_once("<|") {
-        out.push_str(prefix);
-        if let Some((name, tail)) = suffix.split_once("|>")
-            && !name.is_empty()
-            && name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-        {
-            out.push_str(&format!("<¦{name}¦>"));
-            rest = tail;
-        } else {
-            out.push_str("<|");
-            rest = suffix;
-        }
-    }
-    out.push_str(rest);
-    out
 }

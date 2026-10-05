@@ -1,6 +1,7 @@
 //! Expose model families and their automatic loader without owning implementations.
 pub mod auto;
 pub mod clef;
+mod decision;
 pub mod laya;
 pub mod modernbert;
 pub mod qwen3_5;
@@ -9,3 +10,4 @@ pub mod wald;
 pub(crate) mod weights;
 
 pub use auto::{AutoModel, Device, LoadOptions};
+pub use decision::DecisionModel;

@@ -2,7 +2,7 @@ use bdecide::{
     Action, Answer, ClefConfig, LayaConfig, LoadOptions, Metadata, ModernBertConfig, NoulLabels,
     PredictOptions, Question, Qwen3_5Config, Qwen3_5TextConfig, Request, Response, Truncation,
     Usage,
-    hub::{HubOptions, ModelSource, Token},
+    hub::{HubOptions, HubOptionsBuilder, ModelSource, Token},
     models::clef::{EncodedQuestion, EncodedRecord},
 };
 use indexmap::IndexMap;
@@ -75,7 +75,9 @@ fn request_builders_preserve_defaults_and_question_order() {
 fn loading_builders_preserve_constructor_defaults_and_accept_local_sources() {
     // Ensure the new path keeps existing Hub policy, e.g. Auto token selection.
     let direct = HubOptions::new("repo/model");
-    let built = HubOptions::builder().repo_id("repo/model").build();
+    // Keep named builder paths public after module moves, e.g. an explicitly typed empty state.
+    let builder: HubOptionsBuilder = HubOptions::builder();
+    let built = builder.repo_id("repo/model").build();
     assert_eq!(format!("{direct:?}"), format!("{built:?}"));
     let hub = HubOptions::builder()
         .repo_id("repo/model")

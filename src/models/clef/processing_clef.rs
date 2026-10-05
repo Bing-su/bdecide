@@ -1,5 +1,8 @@
 use super::super::qwen3_5::Qwen3_5Config;
-use crate::{Error, Question, Request, Result, Truncation, Usage};
+use crate::{
+    Error, Question, Request, Result, Truncation, Usage,
+    utils::{load_tokenizer, render, token_ids},
+};
 use camino::Utf8Path;
 use serde_json::{Map, Value};
 use std::ops::Range;
@@ -70,13 +73,7 @@ impl ClefProcessor {
 
     pub fn from_pretrained(root: &Utf8Path, config: &Qwen3_5Config) -> Result<Self> {
         config.validate()?;
-        let mut tokenizer = Tokenizer::from_file(root.join("tokenizer.json"))
-            .map_err(|e| Error::Tokenizer(e.to_string()))?;
-        // Assemble the full record ourselves, e.g. do not truncate instruction spans.
-        tokenizer.with_padding(None);
-        tokenizer
-            .with_truncation(None)
-            .map_err(|e| Error::Tokenizer(e.to_string()))?;
+        let tokenizer = load_tokenizer(&root.join("tokenizer.json"))?;
         Ok(Self {
             tokenizer,
             vocab_size: config.text_config.vocab_size,
@@ -84,20 +81,7 @@ impl ClefProcessor {
         })
     }
     fn tokens(&self, text: &str) -> Result<Vec<u32>> {
-        let encoded = self
-            .tokenizer
-            .encode(text, false)
-            .map_err(|e| Error::Tokenizer(e.to_string()))?;
-        if encoded
-            .get_ids()
-            .iter()
-            .any(|&id| id as usize >= self.vocab_size)
-        {
-            return Err(Error::Tokenizer(
-                "token ID exceeds Qwen3.5 vocabulary".into(),
-            ));
-        }
-        Ok(encoded.get_ids().to_vec())
+        token_ids(&self.tokenizer, text, self.vocab_size, "Qwen3.5")
     }
     pub fn process(&self, request: &Request) -> Result<EncodedRecord> {
         request.validate()?;
@@ -251,65 +235,5 @@ fn options(question: &Question) -> Vec<(String, Value)> {
             .enumerate()
             .map(|(i, value)| (i.to_string(), value.clone()))
             .collect(),
-    }
-}
-
-// Match Python's sorted compact JSON, including nested keys and float exponents.
-// For example {"z":1,"a":0.000001} renders as {"a":1e-06,"z":1}.
-fn render(value: &Value) -> Result<String> {
-    fn json(value: &Value) -> Result<String> {
-        match value {
-            Value::Object(fields) => {
-                let mut entries: Vec<_> = fields.iter().collect();
-                entries.sort_by(|a, b| a.0.cmp(b.0));
-                Ok(format!(
-                    "{{{}}}",
-                    entries
-                        .into_iter()
-                        .map(|(key, value)| Ok(format!(
-                            "{}:{}",
-                            serde_json::to_string(key)?,
-                            json(value)?
-                        )))
-                        .collect::<Result<Vec<_>>>()?
-                        .join(",")
-                ))
-            }
-            Value::Array(values) => Ok(format!(
-                "[{}]",
-                values
-                    .iter()
-                    .map(json)
-                    .collect::<Result<Vec<_>>>()?
-                    .join(",")
-            )),
-            Value::Number(number) if number.is_f64() => {
-                let number = number
-                    .as_f64()
-                    .ok_or_else(|| Error::InvalidRequest("invalid JSON float".into()))?;
-                if number != 0.0 && (number.abs() < 1e-4 || number.abs() >= 1e16) {
-                    let scientific = format!("{number:e}");
-                    let (mantissa, exponent) = scientific
-                        .split_once('e')
-                        .ok_or_else(|| Error::InvalidRequest("invalid float exponent".into()))?;
-                    let exponent: i32 = exponent.parse().map_err(|source| {
-                        Error::InvalidRequest(format!("invalid float exponent: {source}"))
-                    })?;
-                    Ok(format!("{mantissa}e{exponent:+03}"))
-                } else {
-                    let text = number.to_string();
-                    Ok(if text.contains('.') {
-                        text
-                    } else {
-                        format!("{text}.0")
-                    })
-                }
-            }
-            _ => Ok(serde_json::to_string(value)?),
-        }
-    }
-    match value {
-        Value::String(text) => Ok(text.clone()),
-        _ => json(value),
     }
 }

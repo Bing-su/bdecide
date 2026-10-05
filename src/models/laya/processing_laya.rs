@@ -3,7 +3,7 @@ use super::configuration_laya::LayaConfig;
 use crate::{
     Error, Question, Request, Result, Truncation, Usage,
     models::modernbert::ModernBertConfig,
-    utils::{read_checkpoint_json, render},
+    utils::{load_tokenizer, read_checkpoint_json, render, token_ids},
 };
 use camino::Utf8Path;
 use tokenizers::Tokenizer;
@@ -38,14 +38,7 @@ pub(crate) struct Batch {
 
 impl LayaProcessor {
     pub fn load(root: &Utf8Path, config: &LayaConfig, encoder: &ModernBertConfig) -> Result<Self> {
-        let path = root.join("tokenizer/tokenizer.json");
-        let mut tokenizer =
-            Tokenizer::from_file(&path).map_err(|e| Error::Tokenizer(e.to_string()))?;
-        // Request assembly owns padding and truncation, not tokenizer.json defaults.
-        tokenizer.with_padding(None);
-        tokenizer
-            .with_truncation(None)
-            .map_err(|e| Error::Tokenizer(e.to_string()))?;
+        let tokenizer = load_tokenizer(&root.join("tokenizer/tokenizer.json"))?;
         let config_json: serde_json::Value =
             read_checkpoint_json(&root.join("tokenizer/tokenizer_config.json"))?;
         let token = |name: &str| -> Result<(String, u32)> {
@@ -84,20 +77,13 @@ impl LayaProcessor {
         })
     }
     fn encode(&self, text: &str) -> Result<Vec<u32>> {
-        let encoding = self
-            .tokenizer
-            .encode(text.replace(&self.mask_text, " "), false)
-            .map_err(|e| Error::Tokenizer(e.to_string()))?;
-        if encoding
-            .get_ids()
-            .iter()
-            .any(|&id| id as usize >= self.vocab)
-        {
-            return Err(Error::Tokenizer(
-                "token ID exceeds encoder vocabulary".into(),
-            ));
-        }
-        Ok(encoding.get_ids().to_vec())
+        // Keep mask markers under processor control, e.g. user text cannot add an option marker.
+        token_ids(
+            &self.tokenizer,
+            &text.replace(&self.mask_text, " "),
+            self.vocab,
+            "encoder",
+        )
     }
     pub fn process(&self, request: &Request) -> Result<Batch> {
         request.validate()?;
