@@ -67,9 +67,8 @@ allow_attributes_without_reason = "warn"
 
 [dependencies]
 bon = "3.10"
-burn = { version = "0.21", default-features = false, features = ["std", "store"] }
-burn-std = { version = "0.21", default-features = false, features = ["std"] }
-burn-store = { version = "0.21", default-features = false, features = ["std", "pytorch"] }
+burn = { version = "0.22", default-features = false, features = ["pytorch", "safetensors", "std"] }
+burn-std = { version = "0.22", default-features = false, features = ["std"] }
 camino = "1"
 dirs = "7"
 hf-hub = { version = "1", features = ["blocking"] }

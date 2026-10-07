@@ -1,5 +1,5 @@
 //! Load and evaluate Wald's calibrated one-pass decisions, e.g. effort=none.
-use burn::tensor::backend::Backend;
+use burn::tensor::Device as BurnDevice;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
@@ -11,24 +11,24 @@ use crate::utils::{read_checkpoint_json, sanitize};
 use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 
 /// Reuse the loaded text readout and calibration, e.g. successive Wald requests.
-pub struct WaldModel<B: Backend> {
-    readout: Readout<B>,
+pub struct WaldModel {
+    readout: Readout,
     letters: Vec<Vec<u32>>,
     config: WaldConfig,
     temperature: Temperature,
     metadata: Metadata,
 }
 
-impl<B: Backend> WaldModel<B> {
-    /// Load the one-pass protocol, e.g. `WaldModel::<Flex>::from_pretrained(&source, &device)?`.
-    pub fn from_pretrained(source: &ModelSource, device: &B::Device) -> Result<Self> {
+impl WaldModel {
+    /// Load the one-pass protocol, e.g. `WaldModel::from_pretrained(&source, &device)?`.
+    pub fn from_pretrained(source: &ModelSource, device: &BurnDevice) -> Result<Self> {
         let artifacts = hub::resolve_wald(source)?;
         Self::load(&artifacts.root, device, artifacts.metadata)
     }
 
     pub(crate) fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         mut metadata: Metadata,
     ) -> Result<Self> {
         let config: WaldConfig = read_checkpoint_json(&root.join("serving.json"))?;
@@ -63,7 +63,7 @@ impl<B: Backend> WaldModel<B> {
         }
         metadata.architecture = "wald".into();
         if metadata.device.is_empty() {
-            metadata.device = B::name(device);
+            metadata.device = format!("{device:?}");
         }
         Ok(Self {
             readout,
@@ -156,7 +156,7 @@ impl<B: Backend> WaldModel<B> {
     }
 }
 
-impl<B: Backend> DecisionModel for WaldModel<B> {
+impl DecisionModel for WaldModel {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }

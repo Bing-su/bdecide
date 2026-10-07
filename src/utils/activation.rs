@@ -3,7 +3,6 @@
 use std::f64::consts::SQRT_2;
 use std::str::FromStr;
 
-use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, activation};
 
 use crate::{Error, Result};
@@ -71,7 +70,7 @@ impl FromStr for HiddenActivation {
 }
 
 impl HiddenActivation {
-    pub(crate) fn forward<B: Backend, const D: usize>(self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub(crate) fn forward<const D: usize>(self, input: Tensor<D>) -> Tensor<D> {
         match self {
             Self::Gelu => activation::gelu(input),
             Self::GeluPython => input.clone() * 0.5 * ((input / SQRT_2).erf() + 1.0),
@@ -108,10 +107,9 @@ impl HiddenActivation {
     }
 }
 
-// Burn 0.21's softplus uses log(1+exp(x)), which loses small tails and overflows in float32.
 // Preserve PyTorch's beta=1, threshold=20 behavior, e.g. sqrtsoftplus(-20) stays nonzero
 // and sqrtsoftplus(100) stays finite without evaluating exp(100).
-fn softplus<B: Backend, const D: usize>(input: Tensor<B, D>) -> Tensor<B, D> {
+fn softplus<const D: usize>(input: Tensor<D>) -> Tensor<D> {
     let tail = (-input.clone().abs()).exp();
     // Some GPU log1p kernels round 1+tail to 1. Preserve those tails with a
     // second-order expansion whose omitted term is below float32 precision at tail<1e-4.
@@ -127,11 +125,7 @@ fn softplus<B: Backend, const D: usize>(input: Tensor<B, D>) -> Tensor<B, D> {
 #[cfg(test)]
 pub(crate) mod tests {
     use approx::{abs_diff_eq, assert_relative_eq};
-    #[cfg(feature = "cpu")]
-    use burn::backend::Flex;
-    #[cfg(feature = "wgpu")]
-    use burn::backend::Wgpu;
-    use burn::tensor::TensorData;
+    use burn::tensor::{Device as BurnDevice, TensorData};
     use camino::Utf8Path;
     use serde::Deserialize;
 
@@ -179,11 +173,11 @@ pub(crate) mod tests {
         }
     }
 
-    fn matches_python<B: Backend>() {
+    fn matches_python(device: BurnDevice) {
         let reference = reference();
         assert_eq!(reference.cases.len(), 22);
-        let device = B::Device::default();
-        let input = Tensor::<B, 1>::from_data(
+
+        let input = Tensor::<1>::from_data(
             TensorData::new(reference.inputs.clone(), [reference.inputs.len()]),
             &device,
         );
@@ -194,7 +188,7 @@ pub(crate) mod tests {
             // A zero tail can pass absolute tolerance; require relative accuracy at x=-20.
             if case.name == "sqrtsoftplus" {
                 let output = act
-                    .forward(Tensor::<B, 1>::from_data([-20.0], &device))
+                    .forward(Tensor::<1>::from_data([-20.0], &device))
                     .into_data();
                 let value = output.as_slice::<f32>().unwrap()[0];
                 assert_relative_eq!(value, 0.00004539993, epsilon = 0.0, max_relative = 1e-4);
@@ -214,13 +208,13 @@ pub(crate) mod tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_python_activations() {
-        matches_python::<Flex>();
+        matches_python(BurnDevice::flex());
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_python_activations() {
-        matches_python::<Wgpu<f32, i32>>();
+        matches_python(BurnDevice::wgpu(Default::default()));
     }
 }

@@ -1,21 +1,21 @@
 use std::ops::Range;
 
 use bon::bon;
-use burn::module::{Initializer, Module, Param};
+use burn::module::{Module, Param};
 use burn::nn::{
     Dropout,
     DropoutConfig,
     Embedding,
     EmbeddingConfig,
     Gelu,
+    Initializer,
     LayerNorm,
     LayerNormConfig,
     Linear,
     LinearConfig,
 };
 use burn::tensor::activation::{gelu, sigmoid, softmax};
-use burn::tensor::backend::Backend;
-use burn::tensor::{Int, Tensor, TensorData};
+use burn::tensor::{Device as BurnDevice, Int, Tensor, TensorData};
 use burn_std::s;
 use camino::Utf8Path;
 use indexmap::IndexMap;
@@ -29,67 +29,67 @@ use crate::utils::{read_checkpoint_json, render};
 use crate::{Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result};
 
 /// Own Clef's pretrained backbone, head, and processor for repeated predictions.
-pub struct ClefModel<B: Backend> {
-    architecture: ClefDecisionModel<B>,
+pub struct ClefModel {
+    architecture: ClefDecisionModel,
     processor: ClefProcessor,
     metadata: Metadata,
-    device: B::Device,
+    device: BurnDevice,
 }
 
 /// Match the released Clef model while reusing the Qwen3.5 text backbone.
 #[derive(Module, Debug)]
-pub struct ClefDecisionModel<B: Backend> {
-    pub(super) backbone: Qwen3_5ForCausalLM<B>,
-    pub(super) head: JointSchemaHead<B>,
+pub struct ClefDecisionModel {
+    pub(super) backbone: Qwen3_5ForCausalLM,
+    pub(super) head: JointSchemaHead,
 }
 
 #[derive(Module, Debug)]
-pub(super) struct JointSchemaHead<B: Backend> {
-    hidden_norm: LayerNorm<B>,
-    memory_projection: Linear<B>,
-    question_projection: Linear<B>,
-    option_question_projection: Linear<B>,
-    global_projection: Linear<B>,
-    option_context_projection: Linear<B>,
-    option_lexical_projection: Linear<B>,
-    type_embedding: Embedding<B>,
-    evidence_layers: Vec<EvidenceRoutingLayer<B>>,
-    option_summary_norm: LayerNorm<B>,
-    layers: Vec<JointDecoderLayer<B>>,
-    field_norm: LayerNorm<B>,
-    option_norm: LayerNorm<B>,
-    residual_scorer: (Linear<B>, Gelu, Dropout, Linear<B>),
-    prior_logit_scale: Param<Tensor<B, 1>>,
-    joint_logit_scale: Param<Tensor<B, 1>>,
-    residual_gate: Param<Tensor<B, 1>>,
+pub(super) struct JointSchemaHead {
+    hidden_norm: LayerNorm,
+    memory_projection: Linear,
+    question_projection: Linear,
+    option_question_projection: Linear,
+    global_projection: Linear,
+    option_context_projection: Linear,
+    option_lexical_projection: Linear,
+    type_embedding: Embedding,
+    evidence_layers: Vec<EvidenceRoutingLayer>,
+    option_summary_norm: LayerNorm,
+    layers: Vec<JointDecoderLayer>,
+    field_norm: LayerNorm,
+    option_norm: LayerNorm,
+    residual_scorer: (Linear, Gelu, Dropout, Linear),
+    prior_logit_scale: Param<Tensor<1>>,
+    joint_logit_scale: Param<Tensor<1>>,
+    residual_gate: Param<Tensor<1>>,
 }
 
 #[derive(Module, Debug)]
-struct EvidenceRoutingLayer<B: Backend> {
-    query_norm: LayerNorm<B>,
-    memory_norm: LayerNorm<B>,
-    attention: MultiheadAttention<B>,
-    feedforward_norm: LayerNorm<B>,
-    feedforward: (Linear<B>, Gelu, Dropout, Linear<B>, Dropout),
+struct EvidenceRoutingLayer {
+    query_norm: LayerNorm,
+    memory_norm: LayerNorm,
+    attention: MultiheadAttention,
+    feedforward_norm: LayerNorm,
+    feedforward: (Linear, Gelu, Dropout, Linear, Dropout),
 }
 #[derive(Module, Debug)]
-struct JointDecoderLayer<B: Backend> {
-    self_attn: MultiheadAttention<B>,
-    multihead_attn: MultiheadAttention<B>,
-    linear1: Linear<B>,
-    linear2: Linear<B>,
-    norm1: LayerNorm<B>,
-    norm2: LayerNorm<B>,
-    norm3: LayerNorm<B>,
+struct JointDecoderLayer {
+    self_attn: MultiheadAttention,
+    multihead_attn: MultiheadAttention,
+    linear1: Linear,
+    linear2: Linear,
+    norm1: LayerNorm,
+    norm2: LayerNorm,
+    norm3: LayerNorm,
 }
 #[derive(Module, Debug)]
-struct MultiheadAttention<B: Backend> {
-    in_proj: Linear<B>,
-    out_proj: Linear<B>,
+struct MultiheadAttention {
+    in_proj: Linear,
+    out_proj: Linear,
     heads: usize,
 }
-impl<B: Backend> MultiheadAttention<B> {
-    fn forward(&self, query: Tensor<B, 3>, memory: Tensor<B, 3>) -> Tensor<B, 3> {
+impl MultiheadAttention {
+    fn forward(&self, query: Tensor<3>, memory: Tensor<3>) -> Tensor<3> {
         let [batch, queries, width] = query.dims();
         let length = memory.dims()[1];
         let dim = width / self.heads;
@@ -117,14 +117,18 @@ impl<B: Backend> MultiheadAttention<B> {
     }
 }
 #[bon]
-impl<B: Backend> ClefDecisionModel<B> {
+impl ClefDecisionModel {
     /// Initialize validated head and backbone dimensions, e.g. `Self::new(config, backbone, device)?`.
     #[builder(start_fn = builder)]
-    pub fn new(config: &ClefConfig, backbone: &Qwen3_5Config, device: &B::Device) -> Result<Self> {
+    pub fn new(config: &ClefConfig, backbone: &Qwen3_5Config, device: &BurnDevice) -> Result<Self> {
         Self::init(config, backbone, device)
     }
 
-    pub fn init(config: &ClefConfig, backbone: &Qwen3_5Config, device: &B::Device) -> Result<Self> {
+    pub fn init(
+        config: &ClefConfig,
+        backbone: &Qwen3_5Config,
+        device: &BurnDevice,
+    ) -> Result<Self> {
         let mut model = Self::init_for_loading(config, backbone, device)?;
         model.backbone.tie_weights();
         Ok(model)
@@ -134,7 +138,7 @@ impl<B: Backend> ClefDecisionModel<B> {
     fn init_for_loading(
         config: &ClefConfig,
         backbone: &Qwen3_5Config,
-        device: &B::Device,
+        device: &BurnDevice,
     ) -> Result<Self> {
         config.validate(backbone)?;
         let hidden = config.hidden_size;
@@ -208,7 +212,7 @@ impl<B: Backend> ClefDecisionModel<B> {
     ///
     /// Use the IDs and spans from `ClefProcessor::process`, e.g. each option span
     /// indexes the corresponding IDs in the supplied `[1, sequence_length]` tensor.
-    pub fn forward(&self, ids: Tensor<B, 2, Int>, record: &EncodedRecord) -> Vec<Tensor<B, 3>> {
+    pub fn forward(&self, ids: Tensor<2, Int>, record: &EncodedRecord) -> Vec<Tensor<3>> {
         let hidden = self
             .head
             .hidden_norm
@@ -218,23 +222,23 @@ impl<B: Backend> ClefDecisionModel<B> {
     }
 }
 
-fn unit<B: Backend>(input: Tensor<B, 3>, eps: f64) -> Tensor<B, 3> {
+fn unit(input: Tensor<3>, eps: f64) -> Tensor<3> {
     input.clone() / input.square().sum_dim(2).sqrt().clamp_min(eps)
 }
-fn mean_span<B: Backend>(values: &Tensor<B, 3>, span: &Range<usize>) -> Tensor<B, 3> {
+fn mean_span(values: &Tensor<3>, span: &Range<usize>) -> Tensor<3> {
     values
         .clone()
         .slice(s![.., span.start..span.end, ..])
         .mean_dim(1)
 }
 
-impl<B: Backend> JointSchemaHead<B> {
+impl JointSchemaHead {
     fn forward(
         &self,
-        hidden: Tensor<B, 3>,
-        lexical: Tensor<B, 3>,
+        hidden: Tensor<3>,
+        lexical: Tensor<3>,
         record: &EncodedRecord,
-    ) -> Vec<Tensor<B, 3>> {
+    ) -> Vec<Tensor<3>> {
         let memory = self.memory_projection.forward(hidden.clone());
         let length = hidden.dims()[1];
         let global = hidden.clone().slice(s![.., length - 1..length, ..]);
@@ -308,7 +312,7 @@ impl<B: Backend> JointSchemaHead<B> {
             summaries.push((weights * options.clone()).sum_dim(1));
             split.push(options);
         }
-        let types = Tensor::<B, 2, Int>::from_data(
+        let types = Tensor::<2, Int>::from_data(
             TensorData::new(
                 record
                     .questions
@@ -385,22 +389,22 @@ impl<B: Backend> JointSchemaHead<B> {
 }
 
 #[bon]
-impl<B: Backend> ClefModel<B> {
+impl ClefModel {
     /// Load reusable pretrained tensors, e.g. `Self::new(root, device)?`.
     #[builder(start_fn = builder)]
-    pub fn new(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+    pub fn new(root: &Utf8Path, device: &BurnDevice) -> Result<Self> {
         Self::from_pretrained(root, device)
     }
 
-    /// Load either release's local artifacts, e.g. `ClefModel::<Flex>::from_pretrained`.
-    pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+    /// Load either release's local artifacts, e.g. `ClefModel::from_pretrained`.
+    pub fn from_pretrained(root: &Utf8Path, device: &BurnDevice) -> Result<Self> {
         let artifacts = resolve_clef(&ModelSource::Local(root.into()))?;
         Self::load(root, device, artifacts.metadata)
     }
 
     pub(crate) fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         mut metadata: Metadata,
     ) -> Result<Self> {
         let backbone: Qwen3_5Config = read_checkpoint_json(&root.join("config.json"))?;
@@ -411,7 +415,7 @@ impl<B: Backend> ClefModel<B> {
         load_clef(&mut architecture, root)?;
         metadata.architecture = "clef".into();
         if metadata.device.is_empty() {
-            metadata.device = B::name(device);
+            metadata.device = format!("{device:?}");
         }
         Ok(Self {
             architecture,
@@ -422,7 +426,7 @@ impl<B: Backend> ClefModel<B> {
     }
 
     fn forward(&self, record: &EncodedRecord) -> Result<Vec<Vec<f32>>> {
-        let ids = Tensor::<B, 2, Int>::from_data(
+        let ids = Tensor::<2, Int>::from_data(
             TensorData::new(
                 record
                     .input_ids
@@ -438,15 +442,14 @@ impl<B: Backend> ClefModel<B> {
             .into_iter()
             .map(|logits| {
                 logits
-                    .into_data()
-                    .to_vec::<f32>()
+                    .try_into_vec_as::<f32>()
                     .map_err(|e| Error::Inference(e.to_string()))
             })
             .collect()
     }
 }
 
-impl<B: Backend> DecisionModel for ClefModel<B> {
+impl DecisionModel for ClefModel {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }
@@ -554,39 +557,49 @@ fn round(value: f64) -> f64 {
 
 #[cfg(test)]
 mod activation_tests {
-    #[cfg(feature = "cpu")]
-    use burn::backend::Flex;
     #[cfg(feature = "wgpu")]
-    use burn::backend::Wgpu;
+    use rstest::rstest;
 
     use super::*;
     use crate::utils::activation::tests::{assert_close, reference};
 
-    fn matches_python<B: Backend>() {
+    fn matches_python(device: BurnDevice, activation: Option<&str>) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-clef");
         let config: ClefConfig =
             read_checkpoint_json(&root.join("joint_head_config.json")).unwrap();
         let mut backbone: Qwen3_5Config = read_checkpoint_json(&root.join("config.json")).unwrap();
-        let reference = reference();
+        let mut reference = reference();
+        // Isolate one GPU case without losing the complete CPU reference matrix, e.g. gelu.
+        if let Some(name) = activation {
+            reference.cases.retain(|case| case.name == name);
+            assert_eq!(
+                reference.cases.len(),
+                1,
+                "missing activation reference: {name}"
+            );
+        }
         let length = reference.input_ids.len();
-        let device = B::Device::default();
-        let ids = Tensor::<B, 2, Int>::from_data(
-            TensorData::new(reference.input_ids, [1, length]),
-            &device,
-        );
+
+        let ids =
+            Tensor::<2, Int>::from_data(TensorData::new(reference.input_ids, [1, length]), &device);
         for case in reference.cases {
             backbone.text_config.hidden_act.clone_from(&case.name);
+            // Keep stage names in captured output to locate interrupted runs, e.g. checkpoint loading.
+            eprintln!("[clef-parity] {}: initialize model", case.name);
             let mut model =
-                ClefDecisionModel::<B>::init_for_loading(&config, &backbone, &device).unwrap();
+                ClefDecisionModel::init_for_loading(&config, &backbone, &device).unwrap();
             // Verify both MLP and Conv1D selection after strict sharded loading, e.g. relu.
+            eprintln!("[clef-parity] {}: load checkpoint", case.name);
             load_clef(&mut model, &root).unwrap();
+            eprintln!("[clef-parity] {}: forward and readback", case.name);
             let output = model.backbone.model.forward(ids.clone());
             let output = output.slice(s![.., length - 1..length, ..]).into_data();
             assert_close(output, &case.qwen3_5, &case.name, 2e-5);
+            eprintln!("[clef-parity] {}: reference matched", case.name);
         }
         for name in ["prelu", "xielu", "unknown"] {
             backbone.text_config.hidden_act = name.into();
-            let error = Qwen3_5ForCausalLM::<B>::init(&backbone.text_config, &device).unwrap_err();
+            let error = Qwen3_5ForCausalLM::init(&backbone.text_config, &device).unwrap_err();
             assert!(matches!(error, Error::UnsupportedModel(_)), "{error}");
         }
     }
@@ -594,23 +607,44 @@ mod activation_tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_python_activation_options() {
-        matches_python::<Flex>();
+        matches_python(BurnDevice::flex(), None);
     }
 
-    #[test]
     #[cfg(feature = "wgpu")]
+    #[rstest]
+    #[case::gelu("gelu")]
+    #[case::gelu_10("gelu_10")]
+    #[case::gelu_fast("gelu_fast")]
+    #[case::gelu_new("gelu_new")]
+    #[case::gelu_python("gelu_python")]
+    #[case::gelu_pytorch_tanh("gelu_pytorch_tanh")]
+    #[case::gelu_python_tanh("gelu_python_tanh")]
+    #[case::gelu_accurate("gelu_accurate")]
+    #[case::hardswish("hardswish")]
+    #[case::laplace("laplace")]
+    #[case::leaky_relu("leaky_relu")]
+    #[case::linear("linear")]
+    #[case::mish("mish")]
+    #[case::quick_gelu("quick_gelu")]
+    #[case::relu("relu")]
+    #[case::relu2("relu2")]
+    #[case::relu6("relu6")]
+    #[case::sigmoid("sigmoid")]
+    #[case::silu("silu")]
+    #[case::sqrtsoftplus("sqrtsoftplus")]
+    #[case::swish("swish")]
+    #[case::tanh("tanh")]
     #[ignore = "requires a wgpu adapter"]
-    fn wgpu_matches_python_activation_options() {
-        matches_python::<Wgpu<f32, i32>>();
+    fn wgpu_matches_python_activation_options(#[case] activation: &str) {
+        let device = BurnDevice::wgpu(Default::default());
+        eprintln!("[clef-parity] {activation}: initialize adapter");
+        eprintln!("[clef-parity] adapter: {:?}", device.identity());
+        matches_python(device, Some(activation));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "cpu")]
-    use burn::backend::Flex;
-    #[cfg(feature = "wgpu")]
-    use burn::backend::Wgpu;
     use rstest::rstest;
     use serde_json::Value;
     #[cfg(feature = "cpu")]
@@ -621,11 +655,11 @@ mod tests {
     use crate::Truncation;
     use crate::models::clef::EncodedQuestion;
 
-    fn verify_reference<B: Backend>(variant: &str, epsilon: f64) {
+    fn verify_reference(device: BurnDevice, variant: &str, epsilon: f64) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures")
             .join(variant);
-        let model = ClefModel::<B>::from_pretrained(&root, &Default::default()).unwrap();
+        let model = ClefModel::from_pretrained(&root, &device).unwrap();
         let reference: Value = read_checkpoint_json(&root.join("reference.json")).unwrap();
         for case in reference["cases"].as_array().unwrap() {
             let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
@@ -720,7 +754,7 @@ mod tests {
     #[case("tiny-clef")]
     #[case("tiny-clef-flash")]
     fn cpu_matches_transformers_on_reference_tokens(#[case] variant: &str) {
-        verify_reference::<Flex>(variant, 4e-5);
+        verify_reference(BurnDevice::flex(), variant, 4e-5);
     }
 
     #[cfg(feature = "wgpu")]
@@ -729,7 +763,7 @@ mod tests {
     #[case("tiny-clef-flash")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_transformers_on_reference_tokens(#[case] variant: &str) {
-        verify_reference::<Wgpu<f32, i32>>(variant, 4e-4);
+        verify_reference(BurnDevice::wgpu(Default::default()), variant, 4e-4);
     }
 
     #[cfg(feature = "cpu")]

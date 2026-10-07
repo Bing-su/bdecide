@@ -22,12 +22,7 @@ use bdecide::{
     Truncation,
     hub::{HubOptions, Token},
 };
-#[cfg(feature = "cpu")]
-use burn::backend::Flex;
-#[cfg(feature = "wgpu")]
-use burn::backend::Wgpu;
-use burn::tensor::backend::Backend;
-use burn::tensor::{Int, Tensor, TensorData};
+use burn::tensor::{Device as BurnDevice, Int, Tensor, TensorData};
 use camino::{Utf8Path, Utf8PathBuf};
 #[cfg(feature = "cpu")]
 use indexmap::IndexMap;
@@ -63,31 +58,31 @@ fn reads_pinned_release_dimensions(
 
 // Exercise the public vocabulary output while comparing selected upstream answer rows.
 // For example decision adapters use A/B, but forward still returns the entire vocabulary.
-fn selected_logits<B: Backend>(
-    model: &Qwen3_5ForCausalLM<B>,
+fn selected_logits(
+    model: &Qwen3_5ForCausalLM,
     input: &[u32],
     answers: &[u32],
-    device: &B::Device,
+    device: &BurnDevice,
 ) -> Vec<f32> {
     let ids = Tensor::from_data(TensorData::new(input.to_vec(), [1, input.len()]), device);
     let output = model.forward(ids, 1).unwrap();
     let answer_ids =
-        Tensor::<B, 1, Int>::from_data(TensorData::new(answers.to_vec(), [answers.len()]), device);
+        Tensor::<1, Int>::from_data(TensorData::new(answers.to_vec(), [answers.len()]), device);
     output
         .logits
         .select(2, answer_ids)
         .into_data()
-        .to_vec()
+        .try_to_vec()
         .unwrap()
 }
 
-fn assert_tensor<B: Backend>(actual: Tensor<B, 3>, expected: &Value) {
+fn assert_tensor(actual: Tensor<3>, expected: &Value) {
     let expected: Vec<Vec<Vec<f32>>> = serde_json::from_value(expected.clone()).unwrap();
     assert_eq!(
         actual.dims(),
         [expected.len(), expected[0].len(), expected[0][0].len()]
     );
-    let values = actual.into_data().to_vec::<f32>().unwrap();
+    let values = actual.into_data().try_to_vec::<f32>().unwrap();
     for (actual, expected) in values
         .into_iter()
         .zip(expected.into_iter().flatten().flatten())
@@ -99,11 +94,11 @@ fn assert_tensor<B: Backend>(actual: Tensor<B, 3>, expected: &Value) {
     }
 }
 
-fn verify_native_forward<B: Backend>(
-    model: &Qwen3_5ForCausalLM<B>,
+fn verify_native_forward(
+    model: &Qwen3_5ForCausalLM,
     root: &Utf8Path,
     reference: &Value,
-    device: &B::Device,
+    device: &BurnDevice,
 ) {
     let native = &reference["causal_lm"];
     let inputs: Vec<Vec<u32>> = serde_json::from_value(native["input_ids"].clone()).unwrap();
@@ -114,7 +109,7 @@ fn verify_native_forward<B: Backend>(
     );
     let tokens: Vec<u32> = serde_json::from_value(native["token_ids"].clone()).unwrap();
     let tokens =
-        Tensor::<B, 1, Int>::from_data(TensorData::new(tokens.clone(), [tokens.len()]), device);
+        Tensor::<1, Int>::from_data(TensorData::new(tokens.clone(), [tokens.len()]), device);
     // The keep count slices sequence positions, never vocabulary rows; zero means every position.
     // For example keeping more positions than exist returns the full sequence, like Python slicing.
     for keep in [0, 1, 2, 8] {
@@ -138,7 +133,7 @@ fn verify_native_forward<B: Backend>(
         );
         assert_tensor(output.logits.select(2, tokens.clone()), &expected);
     }
-    let base = Qwen3_5TextModel::<B>::from_pretrained(root, device).unwrap();
+    let base = Qwen3_5TextModel::from_pretrained(root, device).unwrap();
     assert_eq!(base.config.model_type, "qwen3_5_text");
     assert_tensor(base.forward(ids.clone()), &native["last_hidden_state"]);
     let defaults = model.forward_builder().input_ids(ids).call().unwrap();
@@ -170,7 +165,7 @@ fn compare(actual: &Value, expected: &Value) {
     }
 }
 
-fn verify<B: Backend>(variant: &str, device: Device, backend_device: &B::Device) {
+fn verify(variant: &str, device: Device, backend_device: &BurnDevice) {
     let root = fixture(variant);
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(root.clone()),
@@ -185,7 +180,7 @@ fn verify<B: Backend>(variant: &str, device: Device, backend_device: &B::Device)
     assert_eq!(model.metadata().architecture, expected_family);
     let reference: Value = serde_json::from_slice(&fs::read(root.join("reference.json")).unwrap())
         .expect("reference fixtures and predictions must be valid");
-    let backbone = Qwen3_5ForCausalLM::<B>::from_pretrained(&root, backend_device)
+    let backbone = Qwen3_5ForCausalLM::from_pretrained(&root, backend_device)
         .expect("reference fixtures and predictions must be valid");
     verify_native_forward(&backbone, &root, &reference, backend_device);
     // All seven boundary cases run on CPU. Keep software-GPU parity focused on
@@ -257,7 +252,7 @@ fn verify<B: Backend>(variant: &str, device: Device, backend_device: &B::Device)
 #[case("tiny-vev-9b")]
 #[case("tiny-wald")]
 fn cpu_matches_upstream_text_decisions(#[case] variant: &str) {
-    verify::<Flex>(variant, Device::Cpu, &Default::default());
+    verify(variant, Device::Cpu, &BurnDevice::flex());
 }
 
 #[cfg(feature = "wgpu")]
@@ -267,7 +262,7 @@ fn cpu_matches_upstream_text_decisions(#[case] variant: &str) {
 #[case("tiny-wald")]
 #[ignore = "requires a wgpu adapter"]
 fn wgpu_matches_upstream_text_decisions(#[case] variant: &str) {
-    verify::<Wgpu<f32, i32>>(variant, Device::Wgpu, &Default::default());
+    verify(variant, Device::Wgpu, &BurnDevice::wgpu(Default::default()));
 }
 
 #[cfg(feature = "cpu")]
@@ -485,12 +480,12 @@ fn transformers_embedding_aliases_preserve_strict_loading(#[case] variant: &str)
     output.extend(header);
     output.extend(data);
     fs::write(root.join("model.safetensors"), output).unwrap();
-    let load = || Qwen3_5ForCausalLM::<Flex>::from_pretrained(root, &Default::default());
+    let load = || Qwen3_5ForCausalLM::from_pretrained(root, &BurnDevice::flex());
     if matches!(variant, "missing" | "nan" | "dtype" | "untied_missing") {
         assert!(matches!(load(), Err(Error::Weights(_))));
         return;
     }
-    let actual = selected_logits(&load().unwrap(), &[2, 3, 4], &[0, 5], &Default::default());
+    let actual = selected_logits(&load().unwrap(), &[2, 3, 4], &[0, 5], &BurnDevice::flex());
     let expected = if variant == "different" {
         // Transformers keeps both unequal tensors even with tie_word_embeddings=true.
         // Loading the same values with an explicit untied config must produce identical logits.
@@ -505,10 +500,9 @@ fn transformers_embedding_aliases_preserve_strict_loading(#[case] variant: &str)
         .unwrap();
         load().unwrap()
     } else {
-        Qwen3_5ForCausalLM::<Flex>::from_pretrained(&fixture(fixture_name), &Default::default())
-            .unwrap()
+        Qwen3_5ForCausalLM::from_pretrained(&fixture(fixture_name), &BurnDevice::flex()).unwrap()
     };
-    let expected = selected_logits(&expected, &[2, 3, 4], &[0, 5], &Default::default());
+    let expected = selected_logits(&expected, &[2, 3, 4], &[0, 5], &BurnDevice::flex());
     for (actual, expected) in actual.into_iter().zip(expected) {
         assert!(abs_diff_eq!(actual, expected, epsilon = 1e-6));
     }
@@ -544,7 +538,7 @@ fn causal_lm_extracts_text_config_without_inheriting_wrapper_tying(
     assert_eq!(wrapper.tie_word_embeddings, root_tied);
     // Wrapper and text settings are independent, e.g. constructing a wrapper keeps its false default.
     assert!(!Qwen3_5Config::new(text).tie_word_embeddings);
-    let model = Qwen3_5ForCausalLM::<Flex>::from_pretrained(root, &Default::default()).unwrap();
+    let model = Qwen3_5ForCausalLM::from_pretrained(root, &BurnDevice::flex()).unwrap();
     assert_eq!(model.config.tie_word_embeddings, text_tied);
     assert_eq!(
         model.get_input_embeddings().weight.id == model.get_output_embeddings().weight.id,

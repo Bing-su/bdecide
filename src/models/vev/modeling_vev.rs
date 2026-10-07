@@ -1,5 +1,5 @@
 //! Load and evaluate Vev's trained text decisions, e.g. CountingSheep/vev-4b.
-use burn::tensor::backend::Backend;
+use burn::tensor::Device as BurnDevice;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
@@ -11,23 +11,23 @@ use crate::utils::{read_checkpoint_json, sanitize};
 use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 
 /// Reuse the loaded text readout and label tokens, e.g. successive Vev requests.
-pub struct VevModel<B: Backend> {
-    readout: Readout<B>,
+pub struct VevModel {
+    readout: Readout,
     labels: Vec<String>,
     label_ids: Vec<Vec<u32>>,
     metadata: Metadata,
 }
 
-impl<B: Backend> VevModel<B> {
-    /// Load a merged release, e.g. `VevModel::<Flex>::from_pretrained(&source, &device)?`.
-    pub fn from_pretrained(source: &ModelSource, device: &B::Device) -> Result<Self> {
+impl VevModel {
+    /// Load a merged release, e.g. `VevModel::from_pretrained(&source, &device)?`.
+    pub fn from_pretrained(source: &ModelSource, device: &BurnDevice) -> Result<Self> {
         let artifacts = hub::resolve_vev(source)?;
         Self::load(&artifacts.root, device, artifacts.metadata)
     }
 
     pub(crate) fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         mut metadata: Metadata,
     ) -> Result<Self> {
         let config: VevConfig = read_checkpoint_json(&root.join("vev.json"))?;
@@ -59,7 +59,7 @@ impl<B: Backend> VevModel<B> {
         }
         metadata.architecture = "vev".into();
         if metadata.device.is_empty() {
-            metadata.device = B::name(device);
+            metadata.device = format!("{device:?}");
         }
         Ok(Self {
             readout,
@@ -70,7 +70,7 @@ impl<B: Backend> VevModel<B> {
     }
 }
 
-impl<B: Backend> DecisionModel for VevModel<B> {
+impl DecisionModel for VevModel {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }
@@ -121,7 +121,7 @@ impl<B: Backend> DecisionModel for VevModel<B> {
     }
 }
 
-fn single<B: Backend>(readout: &Readout<B>, label: &str) -> Result<Vec<u32>> {
+fn single(readout: &Readout, label: &str) -> Result<Vec<u32>> {
     let ids = readout.tokens(label)?;
     if ids.len() != 1 {
         return Err(Error::InvalidCheckpoint(format!(
@@ -146,7 +146,6 @@ fn validate_question(question: &Question) -> Result<()> {
 }
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use burn::backend::Flex;
     use serde_json::Value;
 
     use super::*;
@@ -154,9 +153,9 @@ mod tests {
     #[test]
     fn text_prompts_match_pinned_vev_renderer() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-vev-4b");
-        let model = VevModel::<Flex>::load(
+        let model = VevModel::load(
             &root,
-            &Default::default(),
+            &BurnDevice::flex(),
             Metadata::new("fixture", "vev", "cpu"),
         )
         .unwrap();

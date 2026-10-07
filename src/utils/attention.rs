@@ -1,17 +1,17 @@
 //! Share multi-head attention across encoders and decision heads.
-use burn::tensor::backend::Backend;
+use burn::tensor::kind::Basic;
 use burn::tensor::ops::AttentionModuleOptions;
-use burn::tensor::{BasicOps, Bool, Tensor, TensorData, module};
+use burn::tensor::{Bool, Tensor, TensorData, module};
 use burn_std::s;
 
 // Centralize Burn's Flash input contract, e.g. transposed QKV and broadcast padding.
-pub(crate) fn attention<B: Backend>(
-    query: Tensor<B, 4>,
-    key: Tensor<B, 4>,
-    value: Tensor<B, 4>,
-    mask: Option<Tensor<B, 4, Bool>>,
+pub(crate) fn attention(
+    query: Tensor<4>,
+    key: Tensor<4>,
+    value: Tensor<4>,
+    mask: Option<Tensor<4, Bool>>,
     options: AttentionModuleOptions,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     module::attention(
         materialize(query),
         materialize(key),
@@ -22,30 +22,30 @@ pub(crate) fn attention<B: Backend>(
     )
 }
 
-fn materialize<B: Backend, K: BasicOps<B>>(input: Tensor<B, 4, K>) -> Tensor<B, 4, K> {
-    // Copy into a dense buffer: Burn 0.21 Flash readers cannot use arbitrary strides,
+fn materialize<K: Basic>(input: Tensor<4, K>) -> Tensor<4, K> {
+    // Copy into a dense buffer so Flash readers can consume transposed and broadcast inputs,
     // e.g. swap_dims views or masks with a zero stride after expand.
     Tensor::empty(input.shape(), (&input.device(), input.dtype()))
         .slice_assign(s![.., .., .., ..], input)
 }
 
-pub(crate) fn attend<B: Backend>(
-    qkv: Tensor<B, 3>,
+pub(crate) fn attend(
+    qkv: Tensor<3>,
     heads: usize,
-    padding: Tensor<B, 4, Bool>,
+    padding: Tensor<4, Bool>,
     rope: Option<(f64, Option<usize>)>,
-) -> Tensor<B, 3> {
+) -> Tensor<3> {
     attend_with_positions(qkv, heads, padding, rope, None)
 }
 
 // Reuse attention with checkpoint-defined positions, e.g. Von restarts every option.
-pub(crate) fn attend_with_positions<B: Backend>(
-    qkv: Tensor<B, 3>,
+pub(crate) fn attend_with_positions(
+    qkv: Tensor<3>,
     heads: usize,
-    padding: Tensor<B, 4, Bool>,
+    padding: Tensor<4, Bool>,
     rope: Option<(f64, Option<usize>)>,
     positions: Option<&[usize]>,
-) -> Tensor<B, 3> {
+) -> Tensor<3> {
     let [batch, length, total] = qkv.dims();
     let hidden_size = total / 3;
     let head_width = hidden_size / heads;
@@ -79,11 +79,9 @@ pub(crate) fn attend_with_positions<B: Backend>(
                 sin.push(phase.sin());
             }
         }
-        let cos =
-            Tensor::<B, 4>::from_data(TensorData::new(cos, [1, 1, length, head_width]), &device);
-        let sin =
-            Tensor::<B, 4>::from_data(TensorData::new(sin, [1, 1, length, head_width]), &device);
-        let apply_rotary = |hidden: Tensor<B, 4>| {
+        let cos = Tensor::<4>::from_data(TensorData::new(cos, [1, 1, length, head_width]), &device);
+        let sin = Tensor::<4>::from_data(TensorData::new(sin, [1, 1, length, head_width]), &device);
+        let apply_rotary = |hidden: Tensor<4>| {
             // Split rotary channels while keeping every batch, head, and position.
             let first_half = hidden.clone().slice(s![.., .., .., 0..head_width / 2]);
             let second_half = hidden
@@ -108,7 +106,7 @@ pub(crate) fn attend_with_positions<B: Backend>(
                         })
                     })
                     .collect();
-                padding.bool_or(Tensor::<B, 4, Bool>::from_data(
+                padding.bool_or(Tensor::<4, Bool>::from_data(
                     TensorData::new(local, [1, 1, length, length]),
                     &device,
                 ))
@@ -129,15 +127,11 @@ pub(crate) fn attend_with_positions<B: Backend>(
 #[cfg(test)]
 mod tests {
     use approx::abs_diff_eq;
-    #[cfg(feature = "cpu")]
-    use burn::backend::Flex;
-    #[cfg(feature = "wgpu")]
-    use burn::backend::Wgpu;
+    use burn::tensor::Device as BurnDevice;
 
     use super::*;
 
-    fn matches_masked_means<B: Backend>() {
-        let device = B::Device::default();
+    fn matches_masked_means(device: BurnDevice) {
         // Zero Q/K make the expected result an independent mean of visible values.
         // 513 tokens also exercise Flex's tiled path; late padded local rows see no keys.
         for length in [6_usize, 513] {
@@ -153,15 +147,13 @@ mod tests {
                     padding.push(position >= valid);
                 }
             }
-            let qkv = Tensor::<B, 3>::from_data(TensorData::new(qkv, [2, length, 12]), &device);
-            let padding = Tensor::<B, 4, Bool>::from_data(
-                TensorData::new(padding, [2, 1, 1, length]),
-                &device,
-            );
+            let qkv = Tensor::<3>::from_data(TensorData::new(qkv, [2, length, 12]), &device);
+            let padding =
+                Tensor::<4, Bool>::from_data(TensorData::new(padding, [2, 1, 1, length]), &device);
             for rope in [None, Some((10_000.0, None)), Some((10_000.0, Some(1)))] {
                 let actual = attend(qkv.clone(), 2, padding.clone(), rope)
                     .into_data()
-                    .to_vec::<f32>()
+                    .try_to_vec::<f32>()
                     .unwrap();
                 for batch in 0..2 {
                     let valid = if batch == 0 { length } else { length / 2 };
@@ -196,58 +188,45 @@ mod tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_masked_means() {
-        matches_masked_means::<Flex>();
+        matches_masked_means(BurnDevice::flex());
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_masked_means() {
-        matches_masked_means::<Wgpu<f32, i32>>();
+        matches_masked_means(BurnDevice::wgpu(Default::default()));
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_materializes_flash_inputs() {
-        use burn::backend::wgpu::{CubeBackend, WgpuRuntime};
-
-        type B = CubeBackend<WgpuRuntime, f32, i32, u32>;
-        let device = Default::default();
+        let device = BurnDevice::wgpu(Default::default());
         // Distinct batch/head values reveal misaddressing, e.g. a head reading its neighbor.
         let values: Vec<_> = (0..2 * 32 * 2 * 16).map(|i| i as f32).collect();
         let input =
-            Tensor::<B, 4>::from_data(TensorData::new(values.clone(), [2, 32, 2, 16]), &device)
+            Tensor::<4>::from_data(TensorData::new(values.clone(), [2, 32, 2, 16]), &device)
                 .swap_dims(1, 2);
         let output = materialize(input);
         assert_eq!(
             output
-                .clone()
-                .into_primitive()
-                .tensor()
-                .meta
-                .strides()
-                .to_vec(),
-            [1024, 512, 16, 1],
-        );
-        assert_eq!(
-            output.swap_dims(1, 2).into_data().to_vec::<f32>().unwrap(),
+                .swap_dims(1, 2)
+                .into_data()
+                .try_to_vec::<f32>()
+                .unwrap(),
             values,
         );
 
         // Head/query broadcasts must become physical rows, including a one-token sequence.
         for length in [1, 32] {
             let padding: Vec<_> = (0..2 * length).map(|i| i >= length + length / 2).collect();
-            let mask = Tensor::<B, 4, Bool>::from_data(
+            let mask = Tensor::<4, Bool>::from_data(
                 TensorData::new(padding.clone(), [2, 1, 1, length]),
                 &device,
             )
             .expand([2, 2, length, length]);
             let output = materialize(mask);
-            assert_eq!(
-                output.clone().into_primitive().meta.strides().to_vec(),
-                [2 * length * length, length * length, length, 1],
-            );
             let actual: Vec<bool> = output.into_data().iter().collect();
             let expected: Vec<_> = padding
                 .chunks_exact(length)

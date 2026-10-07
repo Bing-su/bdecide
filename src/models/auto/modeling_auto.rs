@@ -3,9 +3,7 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use bon::{Builder, bon};
-#[cfg(feature = "cpu")]
-use burn::backend::Flex;
-use burn::tensor::backend::Backend;
+use burn::tensor::Device as BurnDevice;
 use camino::Utf8Path;
 
 #[cfg(feature = "wgpu")]
@@ -77,7 +75,7 @@ impl AutoModel {
         {
             let mut metadata = artifacts.metadata;
             metadata.device = "cpu".into();
-            Self::load::<Flex>(&artifacts.root, &Default::default(), metadata, family)
+            Self::load(&artifacts.root, &BurnDevice::flex(), metadata, family)
         }
         #[cfg(not(feature = "cpu"))]
         {
@@ -92,23 +90,21 @@ impl AutoModel {
     // wgpu device must report its failure, e.g. a missing adapter or allocation panic.
     #[cfg(feature = "wgpu")]
     fn load_wgpu(artifacts: &Artifacts, family: Family, requested: Device) -> Result<Option<Self>> {
-        use burn::backend::Wgpu;
-        use burn::backend::wgpu::WgpuDevice;
-
-        let device = WgpuDevice::DefaultDevice;
-        // Backend names load or reuse Burn's runtime, including a host's existing GPU.
-        // Probe before allocating tensors so a missing adapter leaves no partial model.
-        if catch_unwind(|| Wgpu::<f32, i32>::name(&device)).is_err() {
-            return if matches!(requested, Device::Wgpu) {
-                Err(Error::Device("wgpu adapter initialization failed".into()))
-            } else {
-                Ok(None)
-            };
-        }
+        // Construct and probe inside the guard, e.g. a missing adapter must allow Auto fallback.
+        let device = match catch_unwind(|| {
+            let device = BurnDevice::wgpu(Default::default());
+            device.sync().map(|()| device)
+        }) {
+            Ok(Ok(device)) => device,
+            _ if matches!(requested, Device::Wgpu) => {
+                return Err(Error::Device("wgpu adapter initialization failed".into()));
+            }
+            _ => return Ok(None),
+        };
         let mut metadata = artifacts.metadata.clone();
         metadata.device = "wgpu".into();
         let loaded = catch_unwind(AssertUnwindSafe(|| {
-            Self::load::<Wgpu<f32, i32>>(&artifacts.root, &device, metadata, family)
+            Self::load(&artifacts.root, &device, metadata, family)
         }));
         match loaded {
             Ok(Ok(model)) => Ok(Some(model)),
@@ -120,19 +116,19 @@ impl AutoModel {
         }
     }
 
-    fn load<B: Backend>(
+    fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         metadata: Metadata,
         family: Family,
     ) -> Result<Self> {
         let model: Box<dyn DecisionModel> = match family {
-            Family::Laya => Box::new(LayaModel::<B>::load(root, device, metadata)?),
-            Family::Clef => Box::new(ClefModel::<B>::load(root, device, metadata)?),
-            Family::Vev => Box::new(VevModel::<B>::load(root, device, metadata)?),
-            Family::Wald => Box::new(WaldModel::<B>::load(root, device, metadata)?),
-            Family::Decider => Box::new(DeciderModel::<B>::load(root, device, metadata)?),
-            Family::Von => Box::new(VonModel::<B>::load(root, device, metadata)?),
+            Family::Laya => Box::new(LayaModel::load(root, device, metadata)?),
+            Family::Clef => Box::new(ClefModel::load(root, device, metadata)?),
+            Family::Vev => Box::new(VevModel::load(root, device, metadata)?),
+            Family::Wald => Box::new(WaldModel::load(root, device, metadata)?),
+            Family::Decider => Box::new(DeciderModel::load(root, device, metadata)?),
+            Family::Von => Box::new(VonModel::load(root, device, metadata)?),
         };
         Ok(Self { model })
     }

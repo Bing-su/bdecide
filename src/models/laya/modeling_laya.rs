@@ -3,19 +3,19 @@
 use std::iter::repeat_n;
 
 use bon::bon;
-use burn::module::{Initializer, Module, Param};
+use burn::module::{Module, Param};
 use burn::nn::{
     Embedding,
     EmbeddingConfig,
     Gelu,
+    Initializer,
     LayerNorm,
     LayerNormConfig,
     Linear,
     LinearConfig,
 };
 use burn::tensor::activation::{relu, softmax};
-use burn::tensor::backend::Backend;
-use burn::tensor::{Bool, Int, Tensor, TensorData};
+use burn::tensor::{Bool, Device as BurnDevice, Int, Tensor, TensorData};
 use burn_std::s;
 use camino::Utf8Path;
 use indexmap::IndexMap;
@@ -39,12 +39,12 @@ pub(crate) const REQUIRED_ARTIFACTS: [&str; 5] = [
 ];
 
 /// Own the loaded tensors and tokenizer so successive predictions reuse them.
-pub struct LayaModel<B: Backend> {
-    architecture: LayaDecisionModel<B>,
+pub struct LayaModel {
+    architecture: LayaDecisionModel,
     processor: LayaProcessor,
     config: LayaConfig,
     metadata: Metadata,
-    device: B::Device,
+    device: BurnDevice,
 }
 pub(crate) struct RawOutput {
     pub logits: Vec<Vec<f32>>,
@@ -52,29 +52,29 @@ pub(crate) struct RawOutput {
 }
 
 #[bon]
-impl<B: Backend> LayaModel<B> {
+impl LayaModel {
     /// Load reusable pretrained tensors, e.g. `Self::new(root, device)?`.
     #[builder(start_fn = builder)]
-    pub fn new(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+    pub fn new(root: &Utf8Path, device: &BurnDevice) -> Result<Self> {
         Self::from_pretrained(root, device)
     }
 
     /// Load a local checkpoint onto a caller-selected Burn backend.
     ///
-    /// For example use `LayaModel::<burn::backend::Flex>::from_pretrained(path, &Default::default())`.
-    pub fn from_pretrained(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+    /// For example use `LayaModel::from_pretrained(path, &burn::tensor::Device::flex())`.
+    pub fn from_pretrained(root: &Utf8Path, device: &BurnDevice) -> Result<Self> {
         let artifacts = resolve(&ModelSource::Local(root.into()), &REQUIRED_ARTIFACTS)?;
         Self::load(root, device, artifacts.metadata)
     }
 
     pub(crate) fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         mut metadata: Metadata,
     ) -> Result<Self> {
         metadata.architecture = "laya".into();
         if metadata.device.is_empty() {
-            metadata.device = B::name(device);
+            metadata.device = format!("{device:?}");
         }
         let config: LayaConfig = read_checkpoint_json(&root.join("rl_agent_config.json"))?;
         let encoder_config: ModernBertConfig =
@@ -121,14 +121,12 @@ impl<B: Backend> LayaModel<B> {
             padding.extend(repeat_n(true, length - row.ids.len()));
             types.push(row.kind as i64);
         }
-        let mask = Tensor::<B, 4, Bool>::from_data(
+        let mask = Tensor::<4, Bool>::from_data(
             TensorData::new(padding, [count, 1, 1, length]),
             &self.device,
         );
-        let ids =
-            Tensor::<B, 2, Int>::from_data(TensorData::new(ids, [count, length]), &self.device);
-        let types =
-            Tensor::<B, 2, Int>::from_data(TensorData::new(types, [count, 1]), &self.device);
+        let ids = Tensor::<2, Int>::from_data(TensorData::new(ids, [count, length]), &self.device);
+        let types = Tensor::<2, Int>::from_data(TensorData::new(types, [count, 1]), &self.device);
         let [_, hidden_size] = self.architecture.type_emb.weight.shape().dims();
         let mut markers = Vec::with_capacity(count * options * hidden_size);
         for row in &batch.rows {
@@ -137,14 +135,13 @@ impl<B: Backend> LayaModel<B> {
                 markers.extend(repeat_n(marker, hidden_size));
             }
         }
-        let markers = Tensor::<B, 3, Int>::from_data(
+        let markers = Tensor::<3, Int>::from_data(
             TensorData::new(markers, [count, options, hidden_size]),
             &self.device,
         );
         let (scores, pooled) = self.architecture.forward(ids, mask, types, markers);
         let scores = scores
-            .into_data()
-            .to_vec::<f32>()
+            .try_into_vec_as::<f32>()
             .map_err(|e| Error::Inference(e.to_string()))?;
         let mut logits = Vec::with_capacity(count);
         let mut features = Vec::with_capacity(count * 4);
@@ -154,12 +151,11 @@ impl<B: Backend> LayaModel<B> {
             logits.push(row_logits);
         }
         let features =
-            Tensor::<B, 3>::from_data(TensorData::new(features, [count, 1, 4]), &self.device);
+            Tensor::<3>::from_data(TensorData::new(features, [count, 1, 4]), &self.device);
         let action_probabilities = self.architecture.action_probabilities(pooled, features);
         let action_count = action_probabilities.dims()[2];
         let action_values = action_probabilities
-            .into_data()
-            .to_vec::<f32>()
+            .try_into_vec_as::<f32>()
             .map_err(|e| Error::Inference(e.to_string()))?;
         // Reject backend overflow instead of serializing a NaN confidence as null.
         if action_values.iter().any(|value| !value.is_finite()) {
@@ -172,7 +168,7 @@ impl<B: Backend> LayaModel<B> {
         Ok(RawOutput { logits, actions })
     }
 }
-impl<B: Backend> DecisionModel for LayaModel<B> {
+impl DecisionModel for LayaModel {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }
@@ -322,49 +318,49 @@ fn round4(value: f64) -> f64 {
 
 /// Initialize without a tokenizer or weight file, then apply [`super::weights::load_laya`].
 ///
-/// For example: `LayaDecisionModel::<burn::backend::Flex>::init(&config, &encoder, &device)`.
+/// For example: `LayaDecisionModel::init(&config, &encoder, &device)`.
 #[derive(Module, Debug)]
-pub struct LayaDecisionModel<B: Backend> {
-    pub(crate) encoder: ModernBertModel<B>,
-    head: LayaHead<B>,
-    pub(crate) type_emb: Embedding<B>,
+pub struct LayaDecisionModel {
+    pub(crate) encoder: ModernBertModel,
+    head: LayaHead,
+    pub(crate) type_emb: Embedding,
     // Tuples preserve Sequential indices, e.g. scorer.3.weight, including parameterless GELU.
-    scorer: (LayerNorm<B>, Linear<B>, Gelu, Linear<B>),
-    act_head: (Linear<B>, Gelu, Linear<B>),
+    scorer: (LayerNorm, Linear, Gelu, Linear),
+    act_head: (Linear, Gelu, Linear),
     // Keep the checkpoint buffer; runtime calibration is defined by config.
-    pub(crate) temperature: Param<Tensor<B, 1>>,
+    pub(crate) temperature: Param<Tensor<1>>,
 }
 
 #[derive(Module, Debug)]
-struct LayaHead<B: Backend> {
-    layers: Vec<LayaHeadLayer<B>>,
+struct LayaHead {
+    layers: Vec<LayaHeadLayer>,
 }
 
 #[derive(Module, Debug)]
-struct LayaHeadLayer<B: Backend> {
-    norm1: LayerNorm<B>,
-    norm2: LayerNorm<B>,
-    self_attn: LayaSelfAttention<B>,
-    linear1: Linear<B>,
-    linear2: Linear<B>,
+struct LayaHeadLayer {
+    norm1: LayerNorm,
+    norm2: LayerNorm,
+    self_attn: LayaSelfAttention,
+    linear1: Linear,
+    linear2: Linear,
     heads: usize,
 }
 
 #[derive(Module, Debug)]
-struct LayaSelfAttention<B: Backend> {
+struct LayaSelfAttention {
     // Keep Burn's fused Linear so loading handles the PyTorch [3d, d] transpose once.
-    in_proj: Linear<B>,
-    out_proj: Linear<B>,
+    in_proj: Linear,
+    out_proj: Linear,
 }
 
 #[bon]
-impl<B: Backend> LayaDecisionModel<B> {
+impl LayaDecisionModel {
     /// Initialize validated head and encoder dimensions, e.g. `Self::new(config, encoder, device)?`.
     #[builder(start_fn = builder)]
     pub fn new(
         config: &LayaConfig,
         encoder: &ModernBertConfig,
-        device: &B::Device,
+        device: &BurnDevice,
     ) -> Result<Self> {
         Self::init(config, encoder, device)
     }
@@ -377,11 +373,11 @@ impl<B: Backend> LayaDecisionModel<B> {
     /// Returns logits `[batch, options, 1]` and pooled state `[batch, 1, hidden]`.
     pub fn forward(
         &self,
-        ids: Tensor<B, 2, Int>,
-        padding: Tensor<B, 4, Bool>,
-        types: Tensor<B, 2, Int>,
-        markers: Tensor<B, 3, Int>,
-    ) -> (Tensor<B, 3>, Tensor<B, 3>) {
+        ids: Tensor<2, Int>,
+        padding: Tensor<4, Bool>,
+        types: Tensor<2, Int>,
+        markers: Tensor<3, Int>,
+    ) -> (Tensor<3>, Tensor<3>) {
         let mut hidden = self.encoder.forward(ids, padding.clone()) + self.type_emb.forward(types);
         for layer in &self.head.layers {
             hidden = layer.forward(hidden, padding.clone());
@@ -395,11 +391,7 @@ impl<B: Backend> LayaDecisionModel<B> {
 
     /// Apply the action head to pooled state and four reference confidence features.
     /// For example, features have shape `[batch, 1, 4]`.
-    pub fn action_probabilities(
-        &self,
-        pooled: Tensor<B, 3>,
-        features: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+    pub fn action_probabilities(&self, pooled: Tensor<3>, features: Tensor<3>) -> Tensor<3> {
         let (input, activation, output) = &self.act_head;
         softmax(
             output
@@ -412,7 +404,7 @@ impl<B: Backend> LayaDecisionModel<B> {
     pub fn init(
         config: &LayaConfig,
         encoder: &ModernBertConfig,
-        device: &B::Device,
+        device: &BurnDevice,
     ) -> Result<Self> {
         encoder.validate()?;
         config.validate(encoder)?;
@@ -453,10 +445,10 @@ impl<B: Backend> LayaDecisionModel<B> {
     }
 }
 
-impl<B: Backend> LayaHeadLayer<B> {
+impl LayaHeadLayer {
     // Keep each residual update with its normalization and projection so layer
     // ordering is explicit, e.g. attention runs before the feed-forward network.
-    fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
+    fn forward(&self, hidden: Tensor<3>, padding: Tensor<4, Bool>) -> Tensor<3> {
         let normalized = self.norm1.forward(hidden.clone());
         let attention = attend(
             self.self_attn.in_proj.forward(normalized),
@@ -475,10 +467,6 @@ impl<B: Backend> LayaHeadLayer<B> {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "cpu")]
-    use burn::backend::Flex;
-    #[cfg(feature = "wgpu")]
-    use burn::backend::Wgpu;
     use proptest::prelude::*;
     use serde_json::Value;
     #[cfg(feature = "cpu")]
@@ -488,9 +476,9 @@ mod tests {
     use crate::models::laya::processing_laya::Encoded;
     use crate::utils::read;
 
-    fn verify_reference<B: Backend>(logit_epsilon: f64, answer_epsilon: f64) {
+    fn verify_reference(device: BurnDevice, logit_epsilon: f64, answer_epsilon: f64) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
-        let model = LayaModel::<B>::from_pretrained(&root, &Default::default()).unwrap();
+        let model = LayaModel::from_pretrained(&root, &device).unwrap();
         let fixtures: Value =
             serde_json::from_slice(&read(&root.parent().unwrap().join("reference.json")).unwrap())
                 .unwrap();
@@ -574,14 +562,14 @@ mod tests {
     #[cfg(feature = "cpu")]
     #[test]
     fn cpu_matches_pytorch_on_reference_tokens() {
-        verify_reference::<Flex>(2e-5, 1.1e-4);
+        verify_reference(BurnDevice::flex(), 2e-5, 1.1e-4);
     }
 
     #[cfg(feature = "wgpu")]
     #[test]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_pytorch_on_reference_tokens() {
-        verify_reference::<Wgpu<f32, i32>>(4e-4, 4e-4);
+        verify_reference(BurnDevice::wgpu(Default::default()), 4e-4, 4e-4);
     }
 
     fn compare(actual: &Value, expected: &Value, epsilon: f64) {
@@ -613,7 +601,7 @@ mod tests {
     #[test]
     fn default_truncation_refuses_loss_of_information() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
-        let model = LayaModel::<Flex>::from_pretrained(&root, &Default::default()).unwrap();
+        let model = LayaModel::from_pretrained(&root, &BurnDevice::flex()).unwrap();
         let request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(100),"questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
         assert!(matches!(
             model.predict(&request),

@@ -13,26 +13,36 @@ use bdecide::{
     Qwen3_5Config,
     Request,
 };
-use burn::backend::Wgpu;
-use burn::tensor::Tensor;
+use burn::tensor::{Device as BurnDevice, Tensor};
 use camino::Utf8Path;
 use rstest::rstest;
 use serde_json::Value;
 use tempfile::tempdir;
 
-#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "requires a wgpu adapter"]
+fn wgpu_initializes_and_reads_back_small_tensor() {
+    // Two values force adapter initialization, one addition, and readback without a model.
+    let device = BurnDevice::wgpu(Default::default());
+    let result = (Tensor::<1>::from_data([1.0_f32, 2.0], &device) + 1.0)
+        .try_into_vec_as::<f32>()
+        .unwrap();
+    assert_eq!(result, [2.0, 3.0]);
+    // Report the already initialized adapter, e.g. distinguish Radeon from Mesa software.
+    eprintln!("[wgpu-smoke] adapter: {:?}", device.identity());
+}
+
 #[rstest]
 #[case::explicit("wgpu")]
 #[case::automatic("auto")]
-fn missing_adapter_keeps_jsonl_requests_recoverable(#[case] device: &str) {
+fn invalid_wgpu_configuration_keeps_jsonl_requests_recoverable(#[case] device: &str) {
     let directory = tempdir().unwrap();
     let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
     let input = directory.path().join("requests.jsonl");
     let request = r#"{"state":"alpha","questions":{"q":{"type":"noul","instructions":"cancel?"}}}"#;
     fs::write(&input, format!("{request}\n{request}\n")).unwrap();
-    let missing_driver = directory.path().join("missing-icd.json");
-    // Linux AutoGraphicsApi uses Vulkan. Hide drivers in a child to test failure
-    // before model allocation, including a second JSONL request on the same process.
+    // Reject the selector before graphics APIs initialize, e.g. "invalid" cannot select hardware.
+    // Keep both JSONL requests recoverable without accessing an adapter.
     let output = Command::new(env!("CARGO_BIN_EXE_bdecide"))
         .args([
             "predict",
@@ -44,9 +54,7 @@ fn missing_adapter_keeps_jsonl_requests_recoverable(#[case] device: &str) {
             "--input",
         ])
         .arg(input)
-        .env("VK_DRIVER_FILES", &missing_driver)
-        .env("VK_ICD_FILENAMES", missing_driver)
-        .env("XDG_RUNTIME_DIR", directory.path())
+        .env("CUBECL_WGPU_DEFAULT_DEVICE", "invalid")
         .output()
         .unwrap();
     let fallback = device == "auto" && cfg!(feature = "cpu");
@@ -80,7 +88,7 @@ fn missing_adapter_keeps_jsonl_requests_recoverable(#[case] device: &str) {
 fn wgpu_matches_independent_python_answers(#[case] device: Device) {
     // A host may use Burn first, e.g. create a GPU tensor before loading bdecide.
     // Every case warms up the runtime so test ordering cannot hide double registration.
-    let _ = Tensor::<Wgpu<f32, i32>, 1>::zeros([1], &Default::default()).into_data();
+    let _ = Tensor::<1>::zeros([1], &BurnDevice::wgpu(Default::default())).into_data();
     let fixtures = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(fixtures.join("tiny-laya")),

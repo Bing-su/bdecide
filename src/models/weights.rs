@@ -1,19 +1,19 @@
 //! Load PyTorch safetensors transactionally through Burn's snapshot and adapter APIs.
 use std::collections::{BTreeMap, BTreeSet};
 
-use burn::module::{ModuleVisitor, Param, ParamId};
+use burn::module::{ModuleVisitor, Param};
+use burn::store::burn_pack::Tensor as PackTensor;
 use burn::store::{
     ModuleAdapter,
     ModuleSnapshot,
     ModuleStore,
     PyTorchToBurnAdapter,
+    PytorchStore,
     SafetensorsStore,
-    TensorSnapshot,
+    bridge,
 };
-use burn::tensor::backend::Backend;
 use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
 use burn_std::DType;
-use burn_store::PytorchStore;
 use camino::Utf8Path;
 use serde::Deserialize;
 
@@ -53,15 +53,14 @@ pub(crate) fn checkpoint_files(
     Ok(files.into_iter().collect())
 }
 
-pub(crate) fn snapshot_data(name: &str, snapshot: &TensorSnapshot) -> Result<TensorData> {
+pub(crate) fn snapshot_data(name: &str, snapshot: &PackTensor) -> Result<TensorData> {
     if !matches!(snapshot.dtype, DType::F32 | DType::F16 | DType::BF16) {
         return Err(Error::Weights(format!(
             "{name}: unsupported dtype {:?}",
             snapshot.dtype
         )));
     }
-    let data = snapshot
-        .to_data()
+    let data = bridge::to_data(snapshot)
         .map_err(|error| Error::Weights(error.to_string()))?
         .convert::<f32>();
     if data
@@ -103,7 +102,7 @@ impl CheckpointPaths {
         let prefix = name.rsplit_once('.').map_or("", |(prefix, _)| prefix);
         if let Some(alias) = PyTorchToBurnAdapter.get_alternative_param_name(parameter, module_type)
         {
-            // Burn 0.21 reports norm aliases as unused; canonicalize using its
+            // Canonicalize norm aliases using Burn's
             // module metadata so strict checks still work, e.g. norm.weight -> gamma.
             let source = if prefix.is_empty() {
                 alias
@@ -120,7 +119,7 @@ impl CheckpointPaths {
     }
 }
 
-impl<B: Backend> ModuleVisitor<B> for CheckpointPaths {
+impl ModuleVisitor for CheckpointPaths {
     fn enter_module(&mut self, name: &str, container_type: &str) {
         self.stack.push((name.into(), container_type.into()));
     }
@@ -129,20 +128,20 @@ impl<B: Backend> ModuleVisitor<B> for CheckpointPaths {
         self.stack.pop();
     }
 
-    fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<B, D>>) {
+    fn visit_float<const D: usize>(&mut self, _: &Param<Tensor<D>>) {
         self.parameter();
     }
 
-    fn visit_int<const D: usize>(&mut self, _: &Param<Tensor<B, D, Int>>) {
+    fn visit_int<const D: usize>(&mut self, _: &Param<Tensor<D, Int>>) {
         self.parameter();
     }
 
-    fn visit_bool<const D: usize>(&mut self, _: &Param<Tensor<B, D, Bool>>) {
+    fn visit_bool<const D: usize>(&mut self, _: &Param<Tensor<D, Bool>>) {
         self.parameter();
     }
 }
 
-pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
+pub(crate) fn load<M: ModuleSnapshot>(
     model: &mut M,
     root: &Utf8Path,
     files: &[String],
@@ -160,11 +159,11 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
         let mut safetensors = SafetensorsStore::from_file(root.join(file));
         let snapshots = if file.ends_with(".pt") {
             pytorch
-                .get_all_snapshots()
+                .get_all_tensors()
                 .map_err(|error| Error::Weights(error.to_string()))?
         } else {
             safetensors
-                .get_all_snapshots()
+                .get_all_tensors()
                 .map_err(|error| Error::Weights(error.to_string()))?
         };
         let mut converted = Vec::with_capacity(snapshots.len());
@@ -178,15 +177,12 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
             }
             let mut data = snapshot_data(&name, snapshot)?;
             // Burn parameters use rank one for scalar logits, e.g. residual_gate [1].
-            if data.shape.is_empty() {
-                data.shape = Shape::new([1]);
+            if data.shape().is_empty() {
+                let (bytes, _, dtype) = data.into_parts();
+                data = TensorData::try_from_bytes(bytes, Shape::new([1]), dtype)
+                    .map_err(|error| Error::Weights(error.to_string()))?;
             }
-            converted.push(TensorSnapshot::from_data(
-                data,
-                name.split('.').map(str::to_owned).collect(),
-                Vec::new(),
-                ParamId::new(),
-            ));
+            converted.push(bridge::from_data(data, name, None));
         }
         // Convert and apply one shard at a time, e.g. avoid retaining all 27B shards.
         let applied = candidate.apply(converted, None, Some(Box::new(PyTorchToBurnAdapter)), false);
@@ -214,25 +210,25 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
 
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use burn::backend::Flex;
     use burn::module::Module;
     use burn::nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
     use burn::store::BurnToPyTorchAdapter;
+    use burn::tensor::Device as BurnDevice;
     use tempfile::tempdir;
 
     use super::*;
 
     #[derive(Module, Debug)]
-    struct Projections<B: Backend> {
+    struct Projections {
         // Use an arbitrary norm name to prove aliases follow Burn's type, e.g. scale.weight.
-        scale: LayerNorm<B>,
-        in_proj: Linear<B>,
+        scale: LayerNorm,
+        in_proj: Linear,
     }
 
     #[test]
     fn strict_loading_uses_burn_types_and_keeps_initializers_lazy() {
-        let device = Default::default();
-        let source = Projections::<Flex> {
+        let device = BurnDevice::flex();
+        let source = Projections {
             scale: LayerNormConfig::new(2).init(&device),
             in_proj: LinearConfig::new(2, 6).init(&device),
         };
@@ -266,7 +262,7 @@ mod tests {
                     .with_key_remapping(r"^scale\.gamma$", "unknown.weight"),
             )
             .unwrap();
-        let mut target = Projections::<Flex> {
+        let mut target = Projections {
             scale: LayerNormConfig::new(2).init(&device),
             in_proj: LinearConfig::new(2, 6).init(&device),
         };

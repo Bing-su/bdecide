@@ -1,5 +1,5 @@
 //! Evaluate independent Decider rows without generating answer tokens.
-use burn::tensor::backend::Backend;
+use burn::tensor::Device as BurnDevice;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
@@ -20,22 +20,22 @@ use crate::{
     Usage,
 };
 
-pub struct DeciderModel<B: Backend> {
-    readout: Readout<B>,
+pub struct DeciderModel {
+    readout: Readout,
     labels: Vec<(String, u32)>,
     config: DeciderConfig,
     metadata: Metadata,
 }
-impl<B: Backend> DeciderModel<B> {
-    /// Load merged weights, e.g. `DeciderModel::<Flex>::from_pretrained(&source, &device)?`.
-    pub fn from_pretrained(source: &ModelSource, device: &B::Device) -> Result<Self> {
+impl DeciderModel {
+    /// Load merged weights, e.g. `DeciderModel::from_pretrained(&source, &device)?`.
+    pub fn from_pretrained(source: &ModelSource, device: &BurnDevice) -> Result<Self> {
         let artifacts = hub::resolve_decider(source)?;
         Self::load(&artifacts.root, device, artifacts.metadata)
     }
 
     pub(crate) fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         mut metadata: Metadata,
     ) -> Result<Self> {
         let config: DeciderConfig = read_checkpoint_json(&root.join("decider_config.json"))?;
@@ -75,7 +75,7 @@ impl<B: Backend> DeciderModel<B> {
         }
         metadata.architecture = "decider".into();
         if metadata.device.is_empty() {
-            metadata.device = B::name(device);
+            metadata.device = format!("{device:?}");
         }
         Ok(Self {
             readout,
@@ -167,7 +167,7 @@ impl<B: Backend> DeciderModel<B> {
         )
     }
 }
-impl<B: Backend> DecisionModel for DeciderModel<B> {
+impl DecisionModel for DeciderModel {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }

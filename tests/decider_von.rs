@@ -7,7 +7,7 @@ use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, Request};
 #[cfg(feature = "cpu")]
 use bdecide::{DeciderModel, Error, Truncation, VonModel};
 #[cfg(feature = "cpu")]
-use burn::backend::Flex;
+use burn::tensor::Device as BurnDevice;
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::Value;
@@ -143,12 +143,12 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
     let source = ModelSource::Local(fixture(name));
     let direct: Box<dyn DecisionModel> = if name.starts_with("tiny-decider") {
         Box::new(
-            DeciderModel::<Flex>::from_pretrained(&source, &Default::default())
+            DeciderModel::from_pretrained(&source, &BurnDevice::flex())
                 .expect("reference fixture and prediction must be valid"),
         )
     } else {
         Box::new(
-            VonModel::<Flex>::from_pretrained(&source, &Default::default())
+            VonModel::from_pretrained(&source, &BurnDevice::flex())
                 .expect("reference fixture and prediction must be valid"),
         )
     };
@@ -233,11 +233,9 @@ fn decider_score_preserves_levels_with_small_choice_limit() {
         serde_json::to_vec(&config).unwrap(),
     )
     .unwrap();
-    let model = DeciderModel::<Flex>::from_pretrained(
-        &ModelSource::Local(root.into()),
-        &Default::default(),
-    )
-    .unwrap();
+    let model =
+        DeciderModel::from_pretrained(&ModelSource::Local(root.into()), &BurnDevice::flex())
+            .unwrap();
     let mut request: Request =
         serde_json::from_value(reference("tiny-decider-list")["cases"][0]["request"].clone())
             .unwrap();
@@ -330,7 +328,7 @@ fn von_rejects_corrupt_state_dict(#[case] kind: &str) {
     )
     .expect("reference fixture and prediction must be valid");
     assert!(matches!(
-        VonModel::<Flex>::from_pretrained(&ModelSource::Local(root.into()), &Default::default()),
+        VonModel::from_pretrained(&ModelSource::Local(root.into()), &BurnDevice::flex()),
         Err(Error::Weights(_))
     ));
 }

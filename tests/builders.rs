@@ -257,7 +257,7 @@ mod cpu {
         LayaModel,
         Qwen3_5TextModel,
     };
-    use burn::backend::Flex;
+    use burn::tensor::Device as BurnDevice;
     use camino::{Utf8Path, Utf8PathBuf};
     use rstest::rstest;
 
@@ -297,20 +297,20 @@ mod cpu {
             serde_json::to_value(built.predict(&request).unwrap()).unwrap(),
             expected
         );
-        let device = Default::default();
-        // Backend-specific loaders report "flex" where AutoModel reports "cpu";
+        let device = BurnDevice::flex();
+        // Direct loaders report the Burn device where AutoModel reports "cpu";
         // compare each constructor to its own established loader's full response.
         let reference: Box<dyn DecisionModel> = if name == "tiny-laya" {
-            Box::new(LayaModel::<Flex>::from_pretrained(&root, &device).unwrap())
+            Box::new(LayaModel::from_pretrained(&root, &device).unwrap())
         } else {
-            Box::new(ClefModel::<Flex>::from_pretrained(&root, &device).unwrap())
+            Box::new(ClefModel::from_pretrained(&root, &device).unwrap())
         };
         let expected = serde_json::to_value(reference.predict(&request).unwrap()).unwrap();
         let models: Vec<Box<dyn DecisionModel>> = if name == "tiny-laya" {
             vec![
-                Box::new(LayaModel::<Flex>::new(&root, &device).unwrap()),
+                Box::new(LayaModel::new(&root, &device).unwrap()),
                 Box::new(
-                    LayaModel::<Flex>::builder()
+                    LayaModel::builder()
                         .root(&root)
                         .device(&device)
                         .build()
@@ -319,9 +319,9 @@ mod cpu {
             ]
         } else {
             vec![
-                Box::new(ClefModel::<Flex>::new(&root, &device).unwrap()),
+                Box::new(ClefModel::new(&root, &device).unwrap()),
                 Box::new(
-                    ClefModel::<Flex>::builder()
+                    ClefModel::builder()
                         .root(&root)
                         .device(&device)
                         .build()
@@ -357,26 +357,26 @@ mod cpu {
             format!("{:?}", direct.process(&request).unwrap()),
             format!("{:?}", built.process(&request).unwrap())
         );
-        let device = Default::default();
+        let device = BurnDevice::flex();
         let clef: ClefConfig =
             serde_json::from_slice(&fs::read(root.join("joint_head_config.json")).unwrap())
                 .unwrap();
-        ClefDecisionModel::<Flex>::new(&clef, &backbone, &device).unwrap();
-        ClefDecisionModel::<Flex>::builder()
+        ClefDecisionModel::new(&clef, &backbone, &device).unwrap();
+        ClefDecisionModel::builder()
             .config(&clef)
             .backbone(&backbone)
             .device(&device)
             .build()
             .unwrap();
-        Qwen3_5TextModel::<Flex>::new(&backbone.text_config, &device).unwrap();
-        Qwen3_5TextModel::<Flex>::builder()
+        Qwen3_5TextModel::new(&backbone.text_config, &device).unwrap();
+        Qwen3_5TextModel::builder()
             .config(&backbone.text_config)
             .device(&device)
             .build()
             .unwrap();
         let invalid = Qwen3_5TextConfig::builder().hidden_size(0).build();
         assert!(matches!(
-            Qwen3_5TextModel::<Flex>::builder()
+            Qwen3_5TextModel::builder()
                 .config(&invalid)
                 .device(&device)
                 .build(),
@@ -384,7 +384,7 @@ mod cpu {
         ));
         let invalid_clef = ClefConfig::new(0, 8, 1, 1, 2, 16);
         assert!(matches!(
-            ClefDecisionModel::<Flex>::builder()
+            ClefDecisionModel::builder()
                 .config(&invalid_clef)
                 .backbone(&backbone)
                 .device(&device)
@@ -396,8 +396,8 @@ mod cpu {
             serde_json::from_slice(&fs::read(root.join("rl_agent_config.json")).unwrap()).unwrap();
         let encoder: ModernBertConfig =
             serde_json::from_slice(&fs::read(root.join("encoder/config.json")).unwrap()).unwrap();
-        LayaDecisionModel::<Flex>::new(&laya, &encoder, &device).unwrap();
-        LayaDecisionModel::<Flex>::builder()
+        LayaDecisionModel::new(&laya, &encoder, &device).unwrap();
+        LayaDecisionModel::builder()
             .config(&laya)
             .encoder(&encoder)
             .device(&device)
@@ -405,7 +405,7 @@ mod cpu {
             .unwrap();
         let invalid_encoder = ModernBertConfig::new(0, 16, 32, 1, 2, 128);
         assert!(matches!(
-            LayaDecisionModel::<Flex>::builder()
+            LayaDecisionModel::builder()
                 .config(&laya)
                 .encoder(&invalid_encoder)
                 .device(&device)

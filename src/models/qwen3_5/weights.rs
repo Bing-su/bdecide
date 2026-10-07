@@ -1,16 +1,12 @@
 //! Select Qwen text tensors and resolve Transformers' tied embedding aliases.
 use burn::store::{ModuleStore, SafetensorsStore};
-use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 
 use super::Qwen3_5ForCausalLM;
 use crate::models::weights::{self, snapshot_data};
 use crate::{Error, Result};
 
-pub(crate) fn load_causal_lm<B: Backend>(
-    model: &mut Qwen3_5ForCausalLM<B>,
-    root: &Utf8Path,
-) -> Result<()> {
+pub(crate) fn load_causal_lm(model: &mut Qwen3_5ForCausalLM, root: &Utf8Path) -> Result<()> {
     let files = backbone_files(root)?;
     let embeddings = embedding_weights(root, &files, model.config.tie_word_embeddings)?;
     let aliases: &[(&str, &str)] = if embeddings.is_tied() {
@@ -59,7 +55,7 @@ fn embedding_weights(root: &Utf8Path, files: &[String], tied: bool) -> Result<Em
     for file in files {
         let mut store = SafetensorsStore::from_file(root.join(file));
         let snapshots = store
-            .get_all_snapshots()
+            .get_all_tensors()
             .map_err(|error| Error::Weights(error.to_string()))?;
         for (name, snapshot) in snapshots {
             let slot = match name.as_str() {
@@ -84,7 +80,7 @@ fn embedding_weights(root: &Utf8Path, files: &[String], tied: bool) -> Result<Em
             let input = snapshot_data("embed_tokens.weight", &input)?;
             let output = snapshot_data("lm_head.weight", &output)?;
             Ok(
-                if input.shape == output.shape
+                if input.shape() == output.shape()
                     && input
                         .as_slice::<f32>()
                         .map_err(|error| Error::Weights(error.to_string()))?

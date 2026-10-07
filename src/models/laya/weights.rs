@@ -1,5 +1,4 @@
 //! Handle checkpoint precision and remaining PyTorch/Burn parameter format differences.
-use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 
 use super::modeling_laya::LayaDecisionModel;
@@ -11,7 +10,7 @@ use crate::models::weights;
 /// Burn reads safetensors and converts floating point storage to FP32. Missing,
 /// unexpected, or incorrectly shaped tensors fail instead of retaining random parameters.
 /// For example: `load_laya(&mut architecture, Utf8Path::new("model.safetensors"))?`.
-pub fn load_laya<B: Backend>(model: &mut LayaDecisionModel<B>, path: &Utf8Path) -> Result<()> {
+pub fn load_laya(model: &mut LayaDecisionModel, path: &Utf8Path) -> Result<()> {
     weights::load(
         model,
         Utf8Path::new(""),
@@ -23,7 +22,7 @@ pub fn load_laya<B: Backend>(model: &mut LayaDecisionModel<B>, path: &Utf8Path) 
 
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use burn::backend::Flex;
+    use burn::tensor::Device as BurnDevice;
 
     use super::*;
     use crate::models::laya::LayaConfig;
@@ -37,8 +36,7 @@ mod tests {
         let mut encoder: ModernBertConfig =
             serde_json::from_slice(&read(&root.join("encoder/config.json")).unwrap()).unwrap();
         encoder.hidden_size = 64;
-        let mut model =
-            LayaDecisionModel::<Flex>::init(&config, &encoder, &Default::default()).unwrap();
+        let mut model = LayaDecisionModel::init(&config, &encoder, &BurnDevice::flex()).unwrap();
         let before = model.type_emb.weight.id;
         let error = load_laya(&mut model, &root.join("model.safetensors")).unwrap_err();
         assert!(error.to_string().contains("Shape mismatch"));

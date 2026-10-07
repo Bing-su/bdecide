@@ -1,8 +1,7 @@
 //! Execute Von's published encoder/scorer and posterior calibration without token generation.
 use burn::module::Module;
 use burn::nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
-use burn::tensor::backend::Backend;
-use burn::tensor::{Bool, Int, Tensor, TensorData, activation};
+use burn::tensor::{Bool, Device as BurnDevice, Int, Tensor, TensorData, activation};
 use camino::Utf8Path;
 use indexmap::IndexMap;
 use tokenizers::Tokenizer;
@@ -27,19 +26,19 @@ use crate::{
 };
 
 #[derive(Module, Debug)]
-struct OptionMarkerModel<B: Backend> {
-    encoder: ModernBertModel<B>,
-    scorer: OptionMarkerScorer<B>,
+struct OptionMarkerModel {
+    encoder: ModernBertModel,
+    scorer: OptionMarkerScorer,
 }
 #[derive(Module, Debug)]
-struct OptionMarkerScorer<B: Backend> {
-    input_norm: LayerNorm<B>,
-    dense: Linear<B>,
-    norm: LayerNorm<B>,
-    out_proj: Linear<B>,
+struct OptionMarkerScorer {
+    input_norm: LayerNorm,
+    dense: Linear,
+    norm: LayerNorm,
+    out_proj: Linear,
 }
-impl<B: Backend> OptionMarkerScorer<B> {
-    fn init(hidden: usize, device: &B::Device) -> Self {
+impl OptionMarkerScorer {
+    fn init(hidden: usize, device: &BurnDevice) -> Self {
         Self {
             input_norm: LayerNormConfig::new(hidden).with_epsilon(1e-5).init(device),
             dense: LinearConfig::new(hidden, hidden / 2).init(device),
@@ -50,31 +49,31 @@ impl<B: Backend> OptionMarkerScorer<B> {
         }
     }
 
-    fn forward(&self, hidden: Tensor<B, 3>) -> Tensor<B, 3> {
+    fn forward(&self, hidden: Tensor<3>) -> Tensor<3> {
         self.out_proj.forward(self.norm.forward(activation::gelu(
             self.dense.forward(self.input_norm.forward(hidden)),
         )))
     }
 }
-pub struct VonModel<B: Backend> {
-    model: OptionMarkerModel<B>,
+pub struct VonModel {
+    model: OptionMarkerModel,
     tokenizer: Tokenizer,
     special: SpecialTokens,
     config: VonConfig,
     encoder_config: ModernBertConfig,
     metadata: Metadata,
-    device: B::Device,
+    device: BurnDevice,
 }
-impl<B: Backend> VonModel<B> {
-    /// Load the original state_dict, e.g. `VonModel::<Flex>::from_pretrained(&source, &device)?`.
-    pub fn from_pretrained(source: &ModelSource, device: &B::Device) -> Result<Self> {
+impl VonModel {
+    /// Load the original state_dict, e.g. `VonModel::from_pretrained(&source, &device)?`.
+    pub fn from_pretrained(source: &ModelSource, device: &BurnDevice) -> Result<Self> {
         let artifacts = hub::resolve_von(source)?;
         Self::load(&artifacts.root, device, artifacts.metadata)
     }
 
     pub(crate) fn load(
         root: &Utf8Path,
-        device: &B::Device,
+        device: &BurnDevice,
         mut metadata: Metadata,
     ) -> Result<Self> {
         let config: VonConfig = read_checkpoint_json(&root.join("marker_calibration.json"))?;
@@ -116,7 +115,7 @@ impl<B: Backend> VonModel<B> {
         )?;
         metadata.architecture = "von".into();
         if metadata.device.is_empty() {
-            metadata.device = B::name(device);
+            metadata.device = format!("{device:?}");
         }
         Ok(Self {
             model,
@@ -196,7 +195,7 @@ impl<B: Backend> VonModel<B> {
         let length = encoded.ids.len();
         usage.input_tokens += length;
         let ids =
-            Tensor::<B, 2, Int>::from_data(TensorData::new(encoded.ids, [1, length]), &self.device);
+            Tensor::<2, Int>::from_data(TensorData::new(encoded.ids, [1, length]), &self.device);
         let hidden = if self.config.independent_options {
             let prefix = *encoded
                 .markers
@@ -223,7 +222,7 @@ impl<B: Backend> VonModel<B> {
                 .collect();
             self.model.encoder.forward_with_positions(
                 ids,
-                Tensor::<B, 4, Bool>::from_data(
+                Tensor::<4, Bool>::from_data(
                     TensorData::new(mask, [1, 1, length, length]),
                     &self.device,
                 ),
@@ -232,7 +231,7 @@ impl<B: Backend> VonModel<B> {
         } else {
             self.model.encoder.forward(
                 ids,
-                Tensor::<B, 4, Bool>::from_data(
+                Tensor::<4, Bool>::from_data(
                     TensorData::new(vec![false; length], [1, 1, 1, length]),
                     &self.device,
                 ),
@@ -250,18 +249,17 @@ impl<B: Backend> VonModel<B> {
             })
             .collect::<Result<_>>()?;
         let indices =
-            Tensor::<B, 1, Int>::from_data(TensorData::new(indices, [options.len()]), &self.device);
+            Tensor::<1, Int>::from_data(TensorData::new(indices, [options.len()]), &self.device);
         let logits = self
             .model
             .scorer
             .forward(hidden.select(1, indices))
-            .into_data()
-            .to_vec::<f32>()
+            .try_into_vec_as::<f32>()
             .map_err(|error| Error::Inference(error.to_string()))?;
         Ok((logits.into_iter().map(f64::from).collect(), state_tokens))
     }
 }
-impl<B: Backend> DecisionModel for VonModel<B> {
+impl DecisionModel for VonModel {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }

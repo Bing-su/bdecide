@@ -2,8 +2,7 @@
 
 use burn::module::Module;
 use burn::nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig};
-use burn::tensor::backend::Backend;
-use burn::tensor::{Bool, Int, Tensor};
+use burn::tensor::{Bool, Device as BurnDevice, Int, Tensor};
 use projections::{ModernBertAttention, ModernBertMLP};
 
 use super::configuration_modernbert::ModernBertConfig;
@@ -12,24 +11,24 @@ use crate::utils::activation::HiddenActivation;
 use crate::utils::attention::attend_with_positions;
 
 #[derive(Module, Debug)]
-pub(crate) struct ModernBertModel<B: Backend> {
-    embeddings: ModernBertEmbeddings<B>,
-    layers: Vec<ModernBertEncoderLayer<B>>,
-    final_norm: LayerNorm<B>,
+pub(crate) struct ModernBertModel {
+    embeddings: ModernBertEmbeddings,
+    layers: Vec<ModernBertEncoderLayer>,
+    final_norm: LayerNorm,
 }
 
 #[derive(Module, Debug)]
-struct ModernBertEmbeddings<B: Backend> {
-    tok_embeddings: Embedding<B>,
-    norm: LayerNorm<B>,
+struct ModernBertEmbeddings {
+    tok_embeddings: Embedding,
+    norm: LayerNorm,
 }
 
 #[derive(Module, Debug)]
-struct ModernBertEncoderLayer<B: Backend> {
-    attn_norm: Option<LayerNorm<B>>,
-    attn: ModernBertAttention<B>,
-    mlp_norm: LayerNorm<B>,
-    mlp: ModernBertMLP<B>,
+struct ModernBertEncoderLayer {
+    attn_norm: Option<LayerNorm>,
+    attn: ModernBertAttention,
+    mlp_norm: LayerNorm,
+    mlp: ModernBertMLP,
     heads: usize,
     theta: f64,
     window: Option<usize>,
@@ -41,23 +40,23 @@ mod projections {
     use super::*;
 
     #[derive(Module, Debug)]
-    pub(super) struct ModernBertAttention<B: Backend> {
-        pub(super) Wqkv: Linear<B>,
-        pub(super) Wo: Linear<B>,
+    pub(super) struct ModernBertAttention {
+        pub(super) Wqkv: Linear,
+        pub(super) Wo: Linear,
     }
 
     #[derive(Module, Debug)]
-    pub(super) struct ModernBertMLP<B: Backend> {
-        pub(super) Wi: Linear<B>,
-        pub(super) Wo: Linear<B>,
+    pub(super) struct ModernBertMLP {
+        pub(super) Wi: Linear,
+        pub(super) Wo: Linear,
         // Config owns this choice; checkpoints contain no activation tensors, e.g. relu.
         #[module(skip)]
         pub(super) act: HiddenActivation,
     }
 }
 
-impl<B: Backend> ModernBertModel<B> {
-    pub fn init(config: &ModernBertConfig, device: &B::Device) -> Result<Self> {
+impl ModernBertModel {
+    pub fn init(config: &ModernBertConfig, device: &BurnDevice) -> Result<Self> {
         config.validate()?;
         let act = config.hidden_activation.parse::<HiddenActivation>()?;
         let hidden_size = config.hidden_size;
@@ -102,7 +101,7 @@ impl<B: Backend> ModernBertModel<B> {
         })
     }
 
-    pub fn forward(&self, ids: Tensor<B, 2, Int>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
+    pub fn forward(&self, ids: Tensor<2, Int>, padding: Tensor<4, Bool>) -> Tensor<3> {
         let mut hidden = self
             .embeddings
             .norm
@@ -116,10 +115,10 @@ impl<B: Backend> ModernBertModel<B> {
     // The same layer weights support isolated option spans, e.g. Von's masked prefix.
     pub(crate) fn forward_with_positions(
         &self,
-        ids: Tensor<B, 2, Int>,
-        mask: Tensor<B, 4, Bool>,
+        ids: Tensor<2, Int>,
+        mask: Tensor<4, Bool>,
         positions: &[usize],
-    ) -> Tensor<B, 3> {
+    ) -> Tensor<3> {
         let mut hidden = self
             .embeddings
             .norm
@@ -131,19 +130,19 @@ impl<B: Backend> ModernBertModel<B> {
     }
 }
 
-impl<B: Backend> ModernBertEncoderLayer<B> {
+impl ModernBertEncoderLayer {
     // Keep a layer's residual steps together without changing checkpoint paths,
     // e.g. attn.Wqkv and mlp.Wi still belong to the same encoder layer.
-    fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
+    fn forward(&self, hidden: Tensor<3>, padding: Tensor<4, Bool>) -> Tensor<3> {
         self.forward_with_positions(hidden, padding, None)
     }
 
     fn forward_with_positions(
         &self,
-        hidden: Tensor<B, 3>,
-        padding: Tensor<B, 4, Bool>,
+        hidden: Tensor<3>,
+        padding: Tensor<4, Bool>,
         positions: Option<&[usize]>,
-    ) -> Tensor<B, 3> {
+    ) -> Tensor<3> {
         let normalized = match &self.attn_norm {
             Some(norm) => norm.forward(hidden.clone()),
             None => hidden.clone(),
@@ -168,10 +167,6 @@ impl<B: Backend> ModernBertEncoderLayer<B> {
 
 #[cfg(test)]
 mod activation_tests {
-    #[cfg(feature = "cpu")]
-    use burn::backend::Flex;
-    #[cfg(feature = "wgpu")]
-    use burn::backend::Wgpu;
     use burn::tensor::TensorData;
     use burn_std::s;
     use camino::Utf8Path;
@@ -183,21 +178,19 @@ mod activation_tests {
     use crate::utils::activation::tests::{assert_close, reference};
     use crate::utils::read_checkpoint_json;
 
-    fn matches_python<B: Backend>() {
+    fn matches_python(device: BurnDevice) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
         let config: LayaConfig = read_checkpoint_json(&root.join("rl_agent_config.json")).unwrap();
         let mut encoder: ModernBertConfig =
             read_checkpoint_json(&root.join("encoder/config.json")).unwrap();
         let reference = reference();
         let length = reference.input_ids.len();
-        let device = B::Device::default();
-        let ids = Tensor::<B, 2, Int>::from_data(
-            TensorData::new(reference.input_ids, [1, length]),
-            &device,
-        );
+
+        let ids =
+            Tensor::<2, Int>::from_data(TensorData::new(reference.input_ids, [1, length]), &device);
         for case in reference.cases {
             encoder.hidden_activation.clone_from(&case.name);
-            let mut model = LayaDecisionModel::<B>::init(&config, &encoder, &device).unwrap();
+            let mut model = LayaDecisionModel::init(&config, &encoder, &device).unwrap();
             // Loading existing weights must retain the config choice, e.g. hidden_activation="relu".
             load_laya(&mut model, &root.join("model.safetensors")).unwrap();
             let output = model.encoder.forward(
@@ -212,7 +205,7 @@ mod activation_tests {
         }
         for name in ["prelu", "xielu", "unknown"] {
             encoder.hidden_activation = name.into();
-            let error = ModernBertModel::<B>::init(&encoder, &device).unwrap_err();
+            let error = ModernBertModel::init(&encoder, &device).unwrap_err();
             assert!(matches!(error, Error::UnsupportedModel(_)), "{error}");
         }
     }
@@ -220,13 +213,13 @@ mod activation_tests {
     #[test]
     #[cfg(feature = "cpu")]
     fn cpu_matches_python_activation_options() {
-        matches_python::<Flex>();
+        matches_python(BurnDevice::flex());
     }
 
     #[test]
     #[cfg(feature = "wgpu")]
     #[ignore = "requires a wgpu adapter"]
     fn wgpu_matches_python_activation_options() {
-        matches_python::<Wgpu<f32, i32>>();
+        matches_python(BurnDevice::wgpu(Default::default()));
     }
 }

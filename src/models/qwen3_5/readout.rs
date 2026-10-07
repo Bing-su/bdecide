@@ -2,7 +2,7 @@
 use std::collections::BTreeSet;
 use std::ops::Range;
 
-use burn::tensor::backend::Backend;
+use burn::tensor::Device as BurnDevice;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 use tokenizers::Tokenizer;
@@ -11,16 +11,16 @@ use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
 use crate::utils::{load_tokenizer, token_ids, tokenize};
 use crate::{Action, Answer, Error, Question, Request, Result, Truncation, Usage};
 
-pub(crate) struct Readout<B: Backend> {
-    pub(crate) model: Qwen3_5ForCausalLM<B>,
+pub(crate) struct Readout {
+    pub(crate) model: Qwen3_5ForCausalLM,
     tokenizer: Tokenizer,
     pub(crate) max_positions: usize,
     vocab_size: usize,
-    device: B::Device,
+    device: BurnDevice,
 }
 
-impl<B: Backend> Readout<B> {
-    pub(crate) fn load(root: &Utf8Path, device: &B::Device) -> Result<Self> {
+impl Readout {
+    pub(crate) fn load(root: &Utf8Path, device: &BurnDevice) -> Result<Self> {
         let config = Qwen3_5TextConfig::from_pretrained(root)?;
         let tokenizer = load_tokenizer(&root.join("tokenizer.json"))?;
         Ok(Self {
