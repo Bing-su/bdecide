@@ -1,15 +1,11 @@
 //! Select Qwen text tensors and resolve Transformers' tied embedding aliases.
-use burn::{
-    store::{ModuleStore, SafetensorsStore},
-    tensor::backend::Backend,
-};
+use burn::store::{ModuleStore, SafetensorsStore};
+use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 
 use super::Qwen3_5ForCausalLM;
-use crate::{
-    Error, Result,
-    models::weights::{self, snapshot_data},
-};
+use crate::models::weights::{self, snapshot_data};
+use crate::{Error, Result};
 
 pub(crate) fn load_causal_lm<B: Backend>(
     model: &mut Qwen3_5ForCausalLM<B>,

@@ -3,7 +3,8 @@ use std::ops::Range;
 
 use serde_json::Value;
 
-use crate::{Question, utils::sanitize};
+use crate::Question;
+use crate::utils::sanitize;
 
 const REPEAT: &str = "\n\nRead the same context again before answering. This is a repeated copy, not additional events or independent evidence:\n";
 
@@ -116,7 +117,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{Request, utils::read_checkpoint_json};
+    use crate::Request;
+    use crate::utils::read_checkpoint_json;
 
     #[test]
     fn text_prompts_match_pinned_wald_renderer() {

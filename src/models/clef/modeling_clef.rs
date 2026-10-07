@@ -1,29 +1,32 @@
 use std::ops::Range;
 
 use bon::bon;
-use burn::{
-    module::{Initializer, Module, Param},
-    nn::{
-        Dropout, DropoutConfig, Embedding, EmbeddingConfig, Gelu, LayerNorm, LayerNormConfig,
-        Linear, LinearConfig,
-    },
-    tensor::{
-        Int, Tensor, TensorData,
-        activation::{gelu, sigmoid, softmax},
-        backend::Backend,
-    },
+use burn::module::{Initializer, Module, Param};
+use burn::nn::{
+    Dropout,
+    DropoutConfig,
+    Embedding,
+    EmbeddingConfig,
+    Gelu,
+    LayerNorm,
+    LayerNormConfig,
+    Linear,
+    LinearConfig,
 };
+use burn::tensor::activation::{gelu, sigmoid, softmax};
+use burn::tensor::backend::Backend;
+use burn::tensor::{Int, Tensor, TensorData};
 use burn_std::s;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
-use super::{ClefConfig, ClefProcessor, EncodedRecord, weights::load_clef};
-use crate::{
-    Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
-    hub::{ModelSource, resolve_clef},
-    models::qwen3_5::{Qwen3_5Config, Qwen3_5ForCausalLM},
-    utils::{attention::attention, read_checkpoint_json, render},
-};
+use super::weights::load_clef;
+use super::{ClefConfig, ClefProcessor, EncodedRecord};
+use crate::hub::{ModelSource, resolve_clef};
+use crate::models::qwen3_5::{Qwen3_5Config, Qwen3_5ForCausalLM};
+use crate::utils::attention::attention;
+use crate::utils::{read_checkpoint_json, render};
+use crate::{Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result};
 
 /// Own Clef's pretrained backbone, head, and processor for repeated predictions.
 pub struct ClefModel<B: Backend> {
@@ -394,6 +397,7 @@ impl<B: Backend> ClefModel<B> {
         let artifacts = resolve_clef(&ModelSource::Local(root.into()))?;
         Self::load(root, device, artifacts.metadata)
     }
+
     pub(crate) fn load(
         root: &Utf8Path,
         device: &B::Device,
@@ -416,6 +420,7 @@ impl<B: Backend> ClefModel<B> {
             device: device.clone(),
         })
     }
+
     fn forward(&self, record: &EncodedRecord) -> Result<Vec<Vec<f32>>> {
         let ids = Tensor::<B, 2, Int>::from_data(
             TensorData::new(
@@ -445,6 +450,7 @@ impl<B: Backend> DecisionModel for ClefModel<B> {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }
+
     fn predict(&self, request: &Request) -> Result<Response> {
         let record = self.processor.process(request)?;
         let logits = self.forward(&record)?;

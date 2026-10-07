@@ -3,16 +3,12 @@ use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
-use super::{
-    configuration_vev::VevConfig,
-    processing_vev::{prompt, render_state},
-};
-use crate::{
-    DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage,
-    hub::{self, ModelSource},
-    models::qwen3_5::readout::{Readout, answer, choice_confidence},
-    utils::{read_checkpoint_json, sanitize},
-};
+use super::configuration_vev::VevConfig;
+use super::processing_vev::{prompt, render_state};
+use crate::hub::{self, ModelSource};
+use crate::models::qwen3_5::readout::{Readout, answer, choice_confidence};
+use crate::utils::{read_checkpoint_json, sanitize};
+use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 
 /// Reuse the loaded text readout and label tokens, e.g. successive Vev requests.
 pub struct VevModel<B: Backend> {

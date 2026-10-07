@@ -2,7 +2,8 @@
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use hf_hub::HFClient;
 
-use super::{HubOptions, ModelSource, Token, environment::HubDefaults};
+use super::environment::HubDefaults;
+use super::{HubOptions, ModelSource, Token};
 use crate::{Error, Metadata, Result};
 
 pub(crate) struct Artifacts {

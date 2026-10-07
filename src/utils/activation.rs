@@ -1,8 +1,10 @@
 //! Select parameterless Transformers activations without changing checkpoint tensors.
 
-use std::{f64::consts::SQRT_2, str::FromStr};
+use std::f64::consts::SQRT_2;
+use std::str::FromStr;
 
-use burn::tensor::{Tensor, activation, backend::Backend};
+use burn::tensor::backend::Backend;
+use burn::tensor::{Tensor, activation};
 
 use crate::{Error, Result};
 

@@ -3,11 +3,31 @@
 use std::fs;
 
 use approx::abs_diff_eq;
+use bdecide::hub::ModelSource;
+use bdecide::{
+    AutoModel,
+    DecisionModel,
+    Device,
+    LoadOptions,
+    Question,
+    Qwen3_5ForCausalLM,
+    Qwen3_5TextConfig,
+    Qwen3_5TextModel,
+    Request,
+};
+#[cfg(feature = "cpu")]
+use bdecide::{
+    Error,
+    Qwen3_5Config,
+    Truncation,
+    hub::{HubOptions, Token},
+};
 #[cfg(feature = "cpu")]
 use burn::backend::Flex;
 #[cfg(feature = "wgpu")]
 use burn::backend::Wgpu;
-use burn::tensor::{Int, Tensor, TensorData, backend::Backend};
+use burn::tensor::backend::Backend;
+use burn::tensor::{Int, Tensor, TensorData};
 use camino::{Utf8Path, Utf8PathBuf};
 #[cfg(feature = "cpu")]
 use indexmap::IndexMap;
@@ -18,16 +38,6 @@ use serde_json::Value;
 #[cfg(feature = "cpu")]
 use serde_json::json;
 use tempfile::tempdir;
-
-use bdecide::{
-    AutoModel, DecisionModel, Device, LoadOptions, Question, Qwen3_5ForCausalLM, Qwen3_5TextConfig,
-    Qwen3_5TextModel, Request, hub::ModelSource,
-};
-#[cfg(feature = "cpu")]
-use bdecide::{
-    Error, Qwen3_5Config, Truncation,
-    hub::{HubOptions, Token},
-};
 
 #[rstest]
 #[case("tiny-vev-4b", true, 2560)]
@@ -308,10 +318,8 @@ fn validates_budgets_and_reports_state_loss(#[case] variant: &str) {
 #[case("tiny-wald")]
 #[tokio::test]
 async fn hub_protocol_artifacts_stay_pinned_and_load_offline(#[case] variant: &str) {
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
     let server = MockServer::start().await;
     let cache = tempdir().unwrap();
     let sha = "1234567890123456789012345678901234567890";

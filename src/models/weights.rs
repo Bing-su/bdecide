@@ -1,19 +1,23 @@
 //! Load PyTorch safetensors transactionally through Burn's snapshot and adapter APIs.
 use std::collections::{BTreeMap, BTreeSet};
 
-use burn::{
-    module::{ModuleVisitor, Param, ParamId},
-    store::{
-        ModuleAdapter, ModuleSnapshot, ModuleStore, PyTorchToBurnAdapter, SafetensorsStore,
-        TensorSnapshot,
-    },
-    tensor::{Bool, Int, Shape, Tensor, TensorData, backend::Backend},
+use burn::module::{ModuleVisitor, Param, ParamId};
+use burn::store::{
+    ModuleAdapter,
+    ModuleSnapshot,
+    ModuleStore,
+    PyTorchToBurnAdapter,
+    SafetensorsStore,
+    TensorSnapshot,
 };
+use burn::tensor::backend::Backend;
+use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
 use burn_std::DType;
 use camino::Utf8Path;
 use serde::Deserialize;
 
-use crate::{Error, Result, utils::read_checkpoint_json};
+use crate::utils::read_checkpoint_json;
+use crate::{Error, Result};
 
 #[derive(Deserialize)]
 struct WeightIndex {
@@ -200,12 +204,10 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
 
 #[cfg(all(test, feature = "cpu"))]
 mod tests {
-    use burn::{
-        backend::Flex,
-        module::Module,
-        nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig},
-        store::BurnToPyTorchAdapter,
-    };
+    use burn::backend::Flex;
+    use burn::module::Module;
+    use burn::nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
+    use burn::store::BurnToPyTorchAdapter;
     use tempfile::tempdir;
 
     use super::*;

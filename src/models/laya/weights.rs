@@ -3,7 +3,8 @@ use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 
 use super::modeling_laya::LayaDecisionModel;
-use crate::{Result, models::weights};
+use crate::Result;
+use crate::models::weights;
 
 /// Apply a Laya PyTorch checkpoint to a separately constructed Burn architecture.
 ///
@@ -25,10 +26,9 @@ mod tests {
     use burn::backend::Flex;
 
     use super::*;
-    use crate::{
-        models::{laya::LayaConfig, modernbert::ModernBertConfig},
-        utils::read,
-    };
+    use crate::models::laya::LayaConfig;
+    use crate::models::modernbert::ModernBertConfig;
+    use crate::utils::read;
     #[test]
     fn rejects_wrong_shapes_without_modifying_the_existing_model() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");

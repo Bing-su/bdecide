@@ -4,31 +4,22 @@
 )]
 
 use bon::bon;
-use burn::{
-    module::{Initializer, Module, Param},
-    nn::{
-        Embedding, EmbeddingConfig, Linear, LinearConfig, PaddingConfig1d,
-        conv::{Conv1d, Conv1dConfig},
-    },
-    tensor::{
-        Int, Tensor, TensorData,
-        activation::{sigmoid, silu, softplus},
-        backend::Backend,
-        ops::AttentionModuleOptions,
-    },
-};
+use burn::module::{Initializer, Module, Param};
+use burn::nn::conv::{Conv1d, Conv1dConfig};
+use burn::nn::{Embedding, EmbeddingConfig, Linear, LinearConfig, PaddingConfig1d};
+use burn::tensor::activation::{sigmoid, silu, softplus};
+use burn::tensor::backend::Backend;
+use burn::tensor::ops::AttentionModuleOptions;
+use burn::tensor::{Int, Tensor, TensorData};
 use burn_std::s;
 use camino::Utf8Path;
 
-use super::{
-    Qwen3_5TextConfig,
-    weights::{backbone_files, backbone_name, load_causal_lm},
-};
-use crate::{
-    Error, Result,
-    models::weights,
-    utils::{activation::HiddenActivation, attention::attention},
-};
+use super::Qwen3_5TextConfig;
+use super::weights::{backbone_files, backbone_name, load_causal_lm};
+use crate::models::weights;
+use crate::utils::activation::HiddenActivation;
+use crate::utils::attention::attention;
+use crate::{Error, Result};
 
 /// Qwen3.5's text backbone, matching `model.language_model` in Transformers.
 #[derive(Module, Debug)]
@@ -316,6 +307,7 @@ impl<B: Backend> Qwen3_5RMSNorm<B> {
             offset,
         }
     }
+
     fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         // Q/K and decoder norms store zero-centered weights; delta-net's gated norm does not.
         let weight = self.weight.val() + if self.offset { 1.0 } else { 0.0 };
@@ -562,6 +554,7 @@ impl<B: Backend> Qwen3_5Attention<B> {
         .reshape([batch, length, self.heads * self.head_dim]);
         self.o_proj.forward(output * sigmoid(gate))
     }
+
     fn rotate(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_, _, length, _] = input.dims();
         let mut cosine = Vec::new();

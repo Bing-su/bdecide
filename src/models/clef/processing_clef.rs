@@ -6,10 +6,8 @@ use serde_json::{Map, Value};
 use tokenizers::Tokenizer;
 
 use super::super::qwen3_5::Qwen3_5Config;
-use crate::{
-    Error, Question, Request, Result, Truncation, Usage,
-    utils::{load_tokenizer, render, token_ids},
-};
+use crate::utils::{load_tokenizer, render, token_ids};
+use crate::{Error, Question, Request, Result, Truncation, Usage};
 
 const SYSTEM_PROMPT: &str = "Read the complete state and schema. Decide every field jointly. Each answer must be exactly one of that field's allowed options.";
 
@@ -83,9 +81,11 @@ impl ClefProcessor {
             max_positions: config.text_config.max_position_embeddings,
         })
     }
+
     fn tokens(&self, text: &str) -> Result<Vec<u32>> {
         token_ids(&self.tokenizer, text, self.vocab_size, "Qwen3.5")
     }
+
     pub fn process(&self, request: &Request) -> Result<EncodedRecord> {
         request.validate()?;
         if request.questions.is_empty() {

@@ -3,30 +3,31 @@
 use std::iter::repeat_n;
 
 use bon::bon;
-use burn::{
-    module::{Initializer, Module, Param},
-    nn::{Embedding, EmbeddingConfig, Gelu, LayerNorm, LayerNormConfig, Linear, LinearConfig},
-    tensor::{
-        Bool, Int, Tensor, TensorData,
-        activation::{relu, softmax},
-        backend::Backend,
-    },
+use burn::module::{Initializer, Module, Param};
+use burn::nn::{
+    Embedding,
+    EmbeddingConfig,
+    Gelu,
+    LayerNorm,
+    LayerNormConfig,
+    Linear,
+    LinearConfig,
 };
+use burn::tensor::activation::{relu, softmax};
+use burn::tensor::backend::Backend;
+use burn::tensor::{Bool, Int, Tensor, TensorData};
 use burn_std::s;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
-use super::{
-    configuration_laya::LayaConfig,
-    processing_laya::{Batch, LayaProcessor, kind},
-    weights::load_laya,
-};
-use crate::{
-    Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result,
-    hub::{ModelSource, resolve},
-    models::modernbert::{ModernBertConfig, ModernBertModel},
-    utils::{attention::attend, read_checkpoint_json, render},
-};
+use super::configuration_laya::LayaConfig;
+use super::processing_laya::{Batch, LayaProcessor, kind};
+use super::weights::load_laya;
+use crate::hub::{ModelSource, resolve};
+use crate::models::modernbert::{ModernBertConfig, ModernBertModel};
+use crate::utils::attention::attend;
+use crate::utils::{read_checkpoint_json, render};
+use crate::{Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result};
 
 // Keep the artifact layout with Laya so other architectures can supply their own.
 pub(crate) const REQUIRED_ARTIFACTS: [&str; 5] = [
@@ -65,6 +66,7 @@ impl<B: Backend> LayaModel<B> {
         let artifacts = resolve(&ModelSource::Local(root.into()), &REQUIRED_ARTIFACTS)?;
         Self::load(root, device, artifacts.metadata)
     }
+
     pub(crate) fn load(
         root: &Utf8Path,
         device: &B::Device,
@@ -90,6 +92,7 @@ impl<B: Backend> LayaModel<B> {
             device: device.clone(),
         })
     }
+
     pub(crate) fn forward(&self, batch: &Batch) -> Result<RawOutput> {
         let count = batch.rows.len();
         let length = batch.rows.iter().map(|r| r.ids.len()).max().unwrap_or(0);
@@ -173,6 +176,7 @@ impl<B: Backend> DecisionModel for LayaModel<B> {
     fn metadata(&self) -> &Metadata {
         &self.metadata
     }
+
     fn predict(&self, request: &Request) -> Result<Response> {
         let batch = self.processor.process(request)?;
         let raw = self.forward(&batch)?;
@@ -481,7 +485,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{models::laya::processing_laya::Encoded, utils::read};
+    use crate::models::laya::processing_laya::Encoded;
+    use crate::utils::read;
 
     fn verify_reference<B: Backend>(logit_epsilon: f64, answer_epsilon: f64) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");

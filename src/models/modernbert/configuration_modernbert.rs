@@ -3,7 +3,8 @@ use bon::Builder;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{Error, Result, utils::activation::HiddenActivation};
+use crate::utils::activation::HiddenActivation;
+use crate::{Error, Result};
 
 /// Read ModernBERT dimensions from the checkpoint, e.g. encoder/config.json.
 #[derive(Debug, Clone, Deserialize, Builder)]
@@ -125,6 +126,7 @@ impl ModernBertConfig {
         }
         Ok(())
     }
+
     pub(crate) fn rope(&self, i: usize) -> Result<(f64, Option<usize>)> {
         let kind = self
             .layer_types

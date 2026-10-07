@@ -1,5 +1,6 @@
 //! Share selected-token inference, e.g. Vev's Yes/No and Wald's A/B.
-use std::{collections::BTreeSet, ops::Range};
+use std::collections::BTreeSet;
+use std::ops::Range;
 
 use burn::tensor::backend::Backend;
 use camino::Utf8Path;
@@ -7,10 +8,8 @@ use indexmap::IndexMap;
 use tokenizers::Tokenizer;
 
 use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
-use crate::{
-    Action, Answer, Error, Question, Request, Result, Truncation, Usage,
-    utils::{load_tokenizer, token_ids, tokenize},
-};
+use crate::utils::{load_tokenizer, token_ids, tokenize};
+use crate::{Action, Answer, Error, Question, Request, Result, Truncation, Usage};
 
 pub(crate) struct Readout<B: Backend> {
     pub(crate) model: Qwen3_5ForCausalLM<B>,

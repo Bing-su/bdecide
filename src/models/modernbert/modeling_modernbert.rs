@@ -1,17 +1,15 @@
 //! Mirror ModernBERT's module hierarchy while constructing tensors from configuration.
 
-use burn::{
-    module::Module,
-    nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
-    tensor::{Bool, Int, Tensor, backend::Backend},
-};
+use burn::module::Module;
+use burn::nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig};
+use burn::tensor::backend::Backend;
+use burn::tensor::{Bool, Int, Tensor};
+use projections::{ModernBertAttention, ModernBertMLP};
 
 use super::configuration_modernbert::ModernBertConfig;
-use crate::{
-    Result,
-    utils::{activation::HiddenActivation, attention::attend},
-};
-use projections::{ModernBertAttention, ModernBertMLP};
+use crate::Result;
+use crate::utils::activation::HiddenActivation;
+use crate::utils::attention::attend;
 
 #[derive(Module, Debug)]
 pub(crate) struct ModernBertModel<B: Backend> {
@@ -103,6 +101,7 @@ impl<B: Backend> ModernBertModel<B> {
             final_norm: norm(),
         })
     }
+
     pub fn forward(&self, ids: Tensor<B, 2, Int>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
         let mut hidden = self
             .embeddings
@@ -151,14 +150,11 @@ mod activation_tests {
     use camino::Utf8Path;
 
     use super::*;
-    use crate::{
-        Error,
-        models::laya::{LayaConfig, LayaDecisionModel, weights::load_laya},
-        utils::{
-            activation::tests::{assert_close, reference},
-            read_checkpoint_json,
-        },
-    };
+    use crate::Error;
+    use crate::models::laya::weights::load_laya;
+    use crate::models::laya::{LayaConfig, LayaDecisionModel};
+    use crate::utils::activation::tests::{assert_close, reference};
+    use crate::utils::read_checkpoint_json;
 
     fn matches_python<B: Backend>() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");

@@ -3,10 +3,9 @@ use camino::Utf8Path;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use crate::{
-    Error, Result,
-    utils::{activation::HiddenActivation, read_checkpoint_json},
-};
+use crate::utils::activation::HiddenActivation;
+use crate::utils::read_checkpoint_json;
+use crate::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Qwen3_5Config {
@@ -166,6 +165,7 @@ impl Qwen3_5TextConfig {
         }
         Ok((dim, theta))
     }
+
     pub(crate) fn layer_types(&self) -> Vec<String> {
         self.layer_types.clone().unwrap_or_else(|| {
             (0..self.num_hidden_layers)
@@ -180,6 +180,7 @@ impl Qwen3_5TextConfig {
                 .collect()
         })
     }
+
     pub fn validate(&self) -> Result<()> {
         if self.model_type != "qwen3_5_text" {
             return Err(Error::UnsupportedModel(self.model_type.clone()));

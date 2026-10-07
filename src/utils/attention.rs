@@ -1,7 +1,7 @@
 //! Share multi-head attention across encoders and decision heads.
-use burn::tensor::{
-    BasicOps, Bool, Tensor, TensorData, backend::Backend, module, ops::AttentionModuleOptions,
-};
+use burn::tensor::backend::Backend;
+use burn::tensor::ops::AttentionModuleOptions;
+use burn::tensor::{BasicOps, Bool, Tensor, TensorData, module};
 use burn_std::s;
 
 // Centralize Burn's Flash input contract, e.g. transposed QKV and broadcast padding.

@@ -6,7 +6,8 @@ use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{Error, Question, Result, utils::read_checkpoint_json};
+use crate::utils::read_checkpoint_json;
+use crate::{Error, Question, Result};
 
 #[derive(Deserialize)]
 pub(crate) struct WaldConfig {
@@ -60,6 +61,7 @@ impl Temperature {
         }
         Ok(table)
     }
+
     pub(super) fn get(&self, question: &Question, count: usize) -> f64 {
         let kind = match question {
             Question::Choice { .. } => "choice",

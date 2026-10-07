@@ -3,16 +3,12 @@ use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 use indexmap::IndexMap;
 
-use super::{
-    configuration_wald::{Temperature, WaldConfig},
-    processing_wald::{option_text, prompt, render},
-};
-use crate::{
-    DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage,
-    hub::{self, ModelSource},
-    models::qwen3_5::readout::{Readout, answer, argmax, choice_confidence, softmax},
-    utils::{read_checkpoint_json, sanitize},
-};
+use super::configuration_wald::{Temperature, WaldConfig};
+use super::processing_wald::{option_text, prompt, render};
+use crate::hub::{self, ModelSource};
+use crate::models::qwen3_5::readout::{Readout, answer, argmax, choice_confidence, softmax};
+use crate::utils::{read_checkpoint_json, sanitize};
+use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 
 /// Reuse the loaded text readout and calibration, e.g. successive Wald requests.
 pub struct WaldModel<B: Backend> {

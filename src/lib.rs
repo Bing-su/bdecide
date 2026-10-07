@@ -13,16 +13,18 @@ mod response;
 mod utils;
 
 pub use error::{Error, Result};
-pub use models::{
-    AutoModel, DecisionModel, Device, LoadOptions,
-    clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor},
-    laya::{LayaConfig, LayaDecisionModel, LayaModel},
-    modernbert::ModernBertConfig,
-    qwen3_5::{
-        CausalLMOutput, Qwen3_5Config, Qwen3_5ForCausalLM, Qwen3_5TextConfig, Qwen3_5TextModel,
-    },
-    vev::VevModel,
-    wald::WaldModel,
+pub use models::clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor};
+pub use models::laya::{LayaConfig, LayaDecisionModel, LayaModel};
+pub use models::modernbert::ModernBertConfig;
+pub use models::qwen3_5::{
+    CausalLMOutput,
+    Qwen3_5Config,
+    Qwen3_5ForCausalLM,
+    Qwen3_5TextConfig,
+    Qwen3_5TextModel,
 };
+pub use models::vev::VevModel;
+pub use models::wald::WaldModel;
+pub use models::{AutoModel, DecisionModel, Device, LoadOptions};
 pub use request::{NoulLabels, PredictOptions, Question, Request, Truncation};
 pub use response::{Action, Answer, Metadata, Response, Usage};

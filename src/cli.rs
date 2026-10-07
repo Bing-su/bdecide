@@ -1,17 +1,22 @@
-use std::{
-    fs::File,
-    io::{self, BufRead, BufReader, BufWriter, ErrorKind, Write},
-    process::ExitCode,
-};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, BufWriter, ErrorKind, Write};
+use std::process::ExitCode;
 
+use bdecide::hub::{HubOptions, ModelSource, Token};
+use bdecide::{
+    AutoModel,
+    DecisionModel,
+    Device,
+    Error,
+    LoadOptions,
+    Request,
+    Response,
+    Result,
+    Truncation,
+};
 use camino::Utf8PathBuf;
 use serde::Serialize;
 use usage::{Args, Cli, Run, Subcommands, ValueEnum};
-
-use bdecide::{
-    AutoModel, DecisionModel, Device, Error, LoadOptions, Request, Response, Result, Truncation,
-    hub::{HubOptions, ModelSource, Token},
-};
 
 /// Evaluate typed questions with a locally executed decision model.
 #[derive(Cli, Debug)]

@@ -1,19 +1,14 @@
 #![cfg(feature = "cpu")]
 use std::fs;
 
+use bdecide::hub::{HubOptions, ModelSource, Token};
+use bdecide::{AutoModel, DecisionModel, Device, Error, LoadOptions, Request};
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
 use tempfile::tempdir;
-use wiremock::{
-    Mock, MockServer, ResponseTemplate,
-    matchers::{method, path},
-};
-
-use bdecide::{
-    AutoModel, DecisionModel, Device, Error, LoadOptions, Request,
-    hub::{HubOptions, ModelSource, Token},
-};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn fixture(variant: &str) -> Utf8PathBuf {
     Utf8Path::new(env!("CARGO_MANIFEST_DIR"))

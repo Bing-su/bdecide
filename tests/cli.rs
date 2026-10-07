@@ -1,18 +1,18 @@
+use std::fs;
 #[cfg(feature = "cpu")]
 use std::io::Write;
+use std::process::Command;
 #[cfg(feature = "cpu")]
 use std::process::Stdio;
-use std::{fs, process::Command};
 
+#[cfg(feature = "cpu")]
+use bdecide::{AutoModel, Device, Error, LoadOptions, hub::ModelSource};
 #[cfg(feature = "cpu")]
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
 use tempfile::{NamedTempFile, tempdir};
 use usage::test::command;
-
-#[cfg(feature = "cpu")]
-use bdecide::{AutoModel, Device, Error, LoadOptions, hub::ModelSource};
 
 #[rstest]
 #[case::help("--help", "Evaluate typed questions")]
@@ -150,7 +150,8 @@ fn malformed_checkpoint_json_reports_a_model_error(#[case] artifact: &str) {
 #[cfg(all(feature = "cpu", unix))]
 #[test]
 fn explicit_anonymous_cache_does_not_require_utf8_home() {
-    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
 
     let directory = tempdir().unwrap();
     let input = directory.path().join("request.json");

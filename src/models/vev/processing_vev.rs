@@ -3,10 +3,8 @@ use std::ops::Range;
 
 use serde_json::Value;
 
-use crate::{
-    Error, Question, Result,
-    utils::{render, sanitize},
-};
+use crate::utils::{render, sanitize};
+use crate::{Error, Question, Result};
 
 const SYSTEM: &str = "You are a careful judge. Read the state, then answer the question about it. Reply with only the answer token, nothing else.";
 

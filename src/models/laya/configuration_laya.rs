@@ -4,7 +4,8 @@ use indexmap::IndexMap;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::{Error, Result, models::modernbert::ModernBertConfig};
+use crate::models::modernbert::ModernBertConfig;
+use crate::{Error, Result};
 
 /// Describe the Laya decision head separately from its encoder configuration.
 #[derive(Debug, Clone, Deserialize, Builder)]
@@ -89,6 +90,7 @@ impl LayaConfig {
         }
         Ok(())
     }
+
     pub(crate) fn temperature(&self, kind: usize, options: usize) -> f32 {
         let size = match options {
             0..=2 => "2",

@@ -134,6 +134,7 @@ impl Question {
             | Self::Noul { instructions, .. } => instructions,
         }
     }
+
     fn validate(&self) -> std::result::Result<(), String> {
         if self.instructions().trim().is_empty() {
             return Err("instructions must not be empty".into());

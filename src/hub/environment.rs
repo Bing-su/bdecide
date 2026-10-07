@@ -1,15 +1,14 @@
 //! Apply Python-compatible cache and credential precedence, e.g. HF_TOKEN before a file.
-use std::{
-    env::{VarError, var},
-    io::ErrorKind,
-    path::PathBuf,
-};
+use std::env::{VarError, var};
+use std::io::ErrorKind;
+use std::path::PathBuf;
 
 use camino::{Utf8Path, Utf8PathBuf};
 use dirs::home_dir;
 
 use super::Token;
-use crate::{Error, Result, utils::read};
+use crate::utils::read;
+use crate::{Error, Result};
 
 pub(super) struct HubDefaults {
     pub(super) cache: Utf8PathBuf,
@@ -32,6 +31,7 @@ impl HubDefaults {
             cache_dir,
         )
     }
+
     fn resolve(
         env: impl Fn(&str) -> Result<Option<String>>,
         home: Option<PathBuf>,
@@ -115,7 +115,8 @@ fn truthy(value: Option<String>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::PathBuf};
+    use std::fs;
+    use std::path::PathBuf;
 
     use rstest::rstest;
     use tempfile::tempdir;
@@ -180,7 +181,8 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn rejects_non_utf8_home_unless_hf_home_overrides_it() {
-        use std::{ffi::OsString, os::unix::ffi::OsStringExt};
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
 
         // A byte such as 0xff must never redirect cache I/O to a replacement path.
         let home = PathBuf::from(OsString::from_vec(b"/home/\xff".to_vec()));

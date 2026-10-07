@@ -10,11 +10,12 @@ use camino::Utf8Path;
 
 #[cfg(feature = "wgpu")]
 use crate::hub::Artifacts;
-use crate::{
-    DecisionModel, Error, Metadata, Request, Response, Result,
-    hub::{Family, HubOptions, ModelSource, resolve_auto},
-    models::{clef::ClefModel, laya::LayaModel, vev::VevModel, wald::WaldModel},
-};
+use crate::hub::{Family, HubOptions, ModelSource, resolve_auto};
+use crate::models::clef::ClefModel;
+use crate::models::laya::LayaModel;
+use crate::models::vev::VevModel;
+use crate::models::wald::WaldModel;
+use crate::{DecisionModel, Error, Metadata, Request, Response, Result};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub enum Device {
@@ -89,7 +90,8 @@ impl AutoModel {
     // wgpu device must report its failure, e.g. a missing adapter or allocation panic.
     #[cfg(feature = "wgpu")]
     fn load_wgpu(artifacts: &Artifacts, family: Family, requested: Device) -> Result<Option<Self>> {
-        use burn::backend::{Wgpu, wgpu::WgpuDevice};
+        use burn::backend::Wgpu;
+        use burn::backend::wgpu::WgpuDevice;
 
         let device = WgpuDevice::DefaultDevice;
         // Backend names load or reuse Burn's runtime, including a host's existing GPU.
@@ -139,6 +141,7 @@ impl DecisionModel for AutoModel {
             Error::Inference("Burn backend failed while executing the request".into())
         })?
     }
+
     fn metadata(&self) -> &Metadata {
         self.model.metadata()
     }

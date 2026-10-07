@@ -3,10 +3,8 @@ use burn::tensor::backend::Backend;
 use camino::Utf8Path;
 
 use super::ClefDecisionModel;
-use crate::{
-    Result,
-    models::{qwen3_5, weights},
-};
+use crate::Result;
+use crate::models::{qwen3_5, weights};
 
 pub(super) fn load_clef<B: Backend>(
     model: &mut ClefDecisionModel<B>,

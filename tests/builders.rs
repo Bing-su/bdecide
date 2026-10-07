@@ -1,13 +1,26 @@
+use bdecide::hub::{HubOptions, HubOptionsBuilder, ModelSource, Token};
+use bdecide::models::clef::{EncodedQuestion, EncodedRecord};
+use bdecide::{
+    Action,
+    Answer,
+    ClefConfig,
+    Error,
+    LayaConfig,
+    LoadOptions,
+    Metadata,
+    ModernBertConfig,
+    NoulLabels,
+    PredictOptions,
+    Question,
+    Qwen3_5Config,
+    Qwen3_5TextConfig,
+    Request,
+    Response,
+    Truncation,
+    Usage,
+};
 use indexmap::IndexMap;
 use serde_json::{Value, json};
-
-use bdecide::{
-    Action, Answer, ClefConfig, Error, LayaConfig, LoadOptions, Metadata, ModernBertConfig,
-    NoulLabels, PredictOptions, Question, Qwen3_5Config, Qwen3_5TextConfig, Request, Response,
-    Truncation, Usage,
-    hub::{HubOptions, HubOptionsBuilder, ModelSource, Token},
-    models::clef::{EncodedQuestion, EncodedRecord},
-};
 
 #[test]
 fn request_builders_preserve_defaults_and_question_order() {
@@ -233,15 +246,22 @@ fn configuration_builders_match_checkpoint_defaults() {
 mod cpu {
     use std::fs;
 
+    use bdecide::{
+        AutoModel,
+        ClefDecisionModel,
+        ClefModel,
+        ClefProcessor,
+        DecisionModel,
+        Error,
+        LayaDecisionModel,
+        LayaModel,
+        Qwen3_5TextModel,
+    };
     use burn::backend::Flex;
     use camino::{Utf8Path, Utf8PathBuf};
     use rstest::rstest;
 
     use super::*;
-    use bdecide::{
-        AutoModel, ClefDecisionModel, ClefModel, ClefProcessor, DecisionModel, Error,
-        LayaDecisionModel, LayaModel, Qwen3_5TextModel,
-    };
 
     fn fixture(name: &str) -> Utf8PathBuf {
         Utf8Path::new(env!("CARGO_MANIFEST_DIR"))

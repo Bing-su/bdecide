@@ -1,18 +1,14 @@
 #![cfg(feature = "cpu")]
-use std::{
-    fs,
-    io::Write,
-    process::{Command, Output, Stdio},
-};
+use std::fs;
+use std::io::Write;
+use std::process::{Command, Output, Stdio};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
 use tempfile::tempdir;
-use wiremock::{
-    Mock, MockServer, ResponseTemplate,
-    matchers::{method, path},
-};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const SHA: &str = "1234567890123456789012345678901234567890";
 const FILES: [&str; 5] = [

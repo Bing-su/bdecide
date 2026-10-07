@@ -2,17 +2,14 @@
 use hf_hub::HFError;
 
 use super::{Artifacts, ModelSource, resolve};
-use crate::{
-    Error, Result,
-    models::{
-        clef::ClefConfig,
-        laya::REQUIRED_ARTIFACTS,
-        qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig, weights::backbone_files},
-        vev::VevConfig,
-        wald::WaldConfig,
-    },
-    utils::read_checkpoint_json,
-};
+use crate::models::clef::ClefConfig;
+use crate::models::laya::REQUIRED_ARTIFACTS;
+use crate::models::qwen3_5::weights::backbone_files;
+use crate::models::qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig};
+use crate::models::vev::VevConfig;
+use crate::models::wald::WaldConfig;
+use crate::utils::read_checkpoint_json;
+use crate::{Error, Result};
 
 #[derive(Clone, Copy)]
 pub(crate) enum Family {

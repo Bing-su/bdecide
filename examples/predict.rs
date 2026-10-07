@@ -1,6 +1,7 @@
 //! Load once and reuse the model for successive typed requests.
 //! Example: cargo run --example predict -- convaiinnovations/laya-multilingual
-use std::{env::args, error::Error};
+use std::env::args;
+use std::error::Error;
 
 use bdecide::{AutoModel, DecisionModel, LoadOptions, Request};
 

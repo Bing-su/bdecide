@@ -1,7 +1,8 @@
 use bon::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Result, models::qwen3_5::Qwen3_5Config};
+use crate::models::qwen3_5::Qwen3_5Config;
+use crate::{Error, Result};
 
 /// Match `joint_head_config.json`, e.g. width=1024 for both public releases.
 #[derive(Debug, Clone, Deserialize, Serialize, Builder)]

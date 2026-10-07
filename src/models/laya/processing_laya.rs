@@ -4,11 +4,9 @@ use serde_json::Value;
 use tokenizers::Tokenizer;
 
 use super::configuration_laya::LayaConfig;
-use crate::{
-    Error, Question, Request, Result, Truncation, Usage,
-    models::modernbert::ModernBertConfig,
-    utils::{load_tokenizer, read_checkpoint_json, render, token_ids},
-};
+use crate::models::modernbert::ModernBertConfig;
+use crate::utils::{load_tokenizer, read_checkpoint_json, render, token_ids};
+use crate::{Error, Question, Request, Result, Truncation, Usage};
 
 // Match Laya's reference head budgets; e.g. an option keeps its marker plus 48 tokens.
 const MAX_OPTION_TOKENS: usize = 48;
@@ -78,6 +76,7 @@ impl LayaProcessor {
             vocab: encoder.vocab_size,
         })
     }
+
     fn encode(&self, text: &str) -> Result<Vec<u32>> {
         // Keep mask markers under processor control, e.g. user text cannot add an option marker.
         token_ids(
@@ -87,6 +86,7 @@ impl LayaProcessor {
             "encoder",
         )
     }
+
     pub fn process(&self, request: &Request) -> Result<Batch> {
         request.validate()?;
         let max_len = request.options.max_len.unwrap_or(self.max_len);

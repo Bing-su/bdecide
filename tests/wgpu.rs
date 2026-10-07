@@ -1,16 +1,24 @@
 #![cfg(feature = "wgpu")]
-use std::{fs, process::Command};
+use std::fs;
+use std::process::Command;
 
-use burn::{backend::Wgpu, tensor::Tensor};
+use bdecide::hub::ModelSource;
+use bdecide::{
+    AutoModel,
+    ClefProcessor,
+    DecisionModel,
+    Device,
+    LoadOptions,
+    Question,
+    Qwen3_5Config,
+    Request,
+};
+use burn::backend::Wgpu;
+use burn::tensor::Tensor;
 use camino::Utf8Path;
 use rstest::rstest;
 use serde_json::Value;
 use tempfile::tempdir;
-
-use bdecide::{
-    AutoModel, ClefProcessor, DecisionModel, Device, LoadOptions, Question, Qwen3_5Config, Request,
-    hub::ModelSource,
-};
 
 #[cfg(target_os = "linux")]
 #[rstest]
