@@ -13,6 +13,7 @@ use burn::store::{
 use burn::tensor::backend::Backend;
 use burn::tensor::{Bool, Int, Shape, Tensor, TensorData};
 use burn_std::DType;
+use burn_store::PytorchStore;
 use camino::Utf8Path;
 use serde::Deserialize;
 
@@ -153,10 +154,19 @@ pub(crate) fn load<B: Backend, M: ModuleSnapshot<B>>(
     let mut candidate = model.clone();
     let mut seen = BTreeSet::new();
     for file in files {
-        let mut store = SafetensorsStore::from_file(root.join(file));
-        let snapshots = store
-            .get_all_snapshots()
-            .map_err(|error| Error::Weights(error.to_string()))?;
+        // Read Von's published torch.save state_dict directly, e.g. option_marker.pt.
+        // Both formats pass the same finite-value, shape and complete-coverage checks.
+        let mut pytorch = PytorchStore::from_file(root.join(file));
+        let mut safetensors = SafetensorsStore::from_file(root.join(file));
+        let snapshots = if file.ends_with(".pt") {
+            pytorch
+                .get_all_snapshots()
+                .map_err(|error| Error::Weights(error.to_string()))?
+        } else {
+            safetensors
+                .get_all_snapshots()
+                .map_err(|error| Error::Weights(error.to_string()))?
+        };
         let mut converted = Vec::with_capacity(snapshots.len());
         for (source, snapshot) in snapshots {
             let Some(name) = map_name(source)? else {

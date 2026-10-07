@@ -36,6 +36,13 @@ impl<B: Backend> Readout<B> {
         token_ids(&self.tokenizer, text, self.vocab_size, "Qwen3.5")
     }
 
+    // Accept separately tokenized prompt pieces, e.g. Decider's wide option labels.
+    pub(crate) fn logits(&self, input: &[u32], answers: &[u32]) -> Result<Vec<f64>> {
+        self.model
+            .forward_selected(input, answers, &self.device)
+            .map(|logits| logits.into_iter().map(f64::from).collect())
+    }
+
     pub(crate) fn validate(&self, request: &Request) -> Result<usize> {
         request.validate()?;
         if request.questions.is_empty() || request.options.head_max_len.is_some() {

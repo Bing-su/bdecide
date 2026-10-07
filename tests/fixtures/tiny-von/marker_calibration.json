@@ -1,0 +1,35 @@
+{
+  "model_type": "option_marker",
+  "base_model": "wfzyx/von-1.1",
+  "model_id": "von-1.2.0",
+  "independent_options": true,
+  "best_val_accuracy": 0.9472,
+  "temperature": 2.2,
+  "timestamp": 1790207664.1941526,
+  "calibration_map": {
+    "bias": 2.0151,
+    "entropy": -3.2369,
+    "log_tokens": 11.4916,
+    "n_options": -3.5574,
+    "lo": 0.3,
+    "hi": 12.0
+  },
+  "calibration_map_features": "T = bias + entropy*H_norm + log_tokens*log10(state_tokens)/4 + n_options*(K/8), clamped to [lo,hi]",
+  "calibration_fitted_on": "JevBench public easy+original+hard (231 items); objective 0.5*JevBench-Calibration + 0.5*per-tier honesty, best of 8 optimiser restarts",
+  "calibration_ece": {
+    "easy": 0.109,
+    "standard": 0.045,
+    "hard": 0.089
+  },
+  "noul_zero_shot_prior": {
+    "a": -0.5,
+    "b": 0.3
+  },
+  "noul_zero_shot_prior_fitted_on": "benchmarks/data/noul_zeroshot_dev.jsonl (150 boolq validation + 25 handwritten, never jabr/JevBench)",
+  "training": {
+    "recipe": "full retrain from von-1.1 weights, independent_options=True, 1 epoch, lr 3e-5, batch 8 x accum 2 x 4 GPU",
+    "corpus": "290k universal + 40k long-context + 40k synthetic two-hop/numeric, overlap_target 0.32",
+    "order_invariance": "each option's logit is a function of (state, that option) only: cross-option attention blocked, per-option position ids reset to prefix length, sliding window computed from those ids; 0/111 flips on JevBench hard x 4 orderings"
+  },
+  "digit_split": false
+}

@@ -3,10 +3,13 @@ use hf_hub::HFError;
 
 use super::{Artifacts, ModelSource, resolve};
 use crate::models::clef::ClefConfig;
+use crate::models::decider::DeciderConfig;
 use crate::models::laya::REQUIRED_ARTIFACTS;
+use crate::models::modernbert::ModernBertConfig;
 use crate::models::qwen3_5::weights::backbone_files;
 use crate::models::qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig};
 use crate::models::vev::VevConfig;
+use crate::models::von::VonConfig;
 use crate::models::wald::WaldConfig;
 use crate::utils::read_checkpoint_json;
 use crate::{Error, Result};
@@ -17,6 +20,8 @@ pub(crate) enum Family {
     Clef,
     Vev,
     Wald,
+    Decider,
+    Von,
 }
 
 /// Detect artifact layouts rather than repo IDs, e.g. a renamed Clef fine-tune.
@@ -28,6 +33,13 @@ pub(crate) fn resolve_auto(source: &ModelSource) -> Result<(Artifacts, Family)> 
         }
         Err(error) if artifact_absent(&error) => {
             let artifacts = resolve(source, &["config.json"])?;
+            let config: serde_json::Value =
+                read_checkpoint_json(&artifacts.root.join("config.json"))?;
+            if config.get("model_type").and_then(serde_json::Value::as_str) == Some("modernbert") {
+                resolve_more(source, &artifacts, &["marker_calibration.json"])?;
+                resolve_family(source, &artifacts, Family::Von)?;
+                return Ok((artifacts, Family::Von));
+            }
             Qwen3_5TextConfig::from_pretrained(&artifacts.root)?;
             let family = match resolve_more(source, &artifacts, &["joint_head_config.json"]) {
                 Ok(()) => Family::Clef,
@@ -35,8 +47,14 @@ pub(crate) fn resolve_auto(source: &ModelSource) -> Result<(Artifacts, Family)> 
                     match resolve_more(source, &artifacts, &["vev.json"]) {
                         Ok(()) => Family::Vev,
                         Err(error) if artifact_absent(&error) => {
-                            resolve_more(source, &artifacts, &["serving.json"])?;
-                            Family::Wald
+                            match resolve_more(source, &artifacts, &["serving.json"]) {
+                                Ok(()) => Family::Wald,
+                                Err(error) if artifact_absent(&error) => {
+                                    resolve_more(source, &artifacts, &["decider_config.json"])?;
+                                    Family::Decider
+                                }
+                                Err(error) => return Err(error),
+                            }
                         }
                         Err(error) => return Err(error),
                     }
@@ -71,7 +89,37 @@ pub(crate) fn resolve_wald(source: &ModelSource) -> Result<Artifacts> {
     Ok(artifacts)
 }
 
+pub(crate) fn resolve_decider(source: &ModelSource) -> Result<Artifacts> {
+    let artifacts = resolve(source, &["config.json"])?;
+    resolve_more(source, &artifacts, &["decider_config.json"])?;
+    resolve_family(source, &artifacts, Family::Decider)?;
+    Ok(artifacts)
+}
+
+pub(crate) fn resolve_von(source: &ModelSource) -> Result<Artifacts> {
+    let artifacts = resolve(source, &["config.json"])?;
+    resolve_more(source, &artifacts, &["marker_calibration.json"])?;
+    resolve_family(source, &artifacts, Family::Von)?;
+    Ok(artifacts)
+}
+
 fn resolve_family(source: &ModelSource, artifacts: &Artifacts, family: Family) -> Result<()> {
+    if matches!(family, Family::Von) {
+        let encoder: ModernBertConfig = read_checkpoint_json(&artifacts.root.join("config.json"))?;
+        encoder.validate()?;
+        let calibration: VonConfig =
+            read_checkpoint_json(&artifacts.root.join("marker_calibration.json"))?;
+        calibration.validate()?;
+        return resolve_more(
+            source,
+            artifacts,
+            &[
+                "option_marker.pt",
+                "tokenizer.json",
+                "tokenizer_config.json",
+            ],
+        );
+    }
     Qwen3_5TextConfig::from_pretrained(&artifacts.root)?;
     match family {
         Family::Clef => {
@@ -89,6 +137,16 @@ fn resolve_family(source: &ModelSource, artifacts: &Artifacts, family: Family) -
             let config: WaldConfig = read_checkpoint_json(&artifacts.root.join("serving.json"))?;
             config.validate()?;
             resolve_more(source, artifacts, &["temperature.json"])?;
+        }
+        Family::Decider => {
+            let config: DeciderConfig =
+                read_checkpoint_json(&artifacts.root.join("decider_config.json"))?;
+            config.validate()?;
+        }
+        Family::Von => {
+            return Err(Error::UnsupportedModel(
+                "Von requires its Option-Marker artifact layout".into(),
+            ));
         }
         Family::Laya => {
             return Err(Error::UnsupportedModel(

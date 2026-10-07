@@ -1,0 +1,265 @@
+{
+  "upstream_revision": "7d0ff642a989510b2148c151e7109a3b9750fca5",
+  "weights_revision": "498ceba33390b32cfefaab6422ec380318ba9b99",
+  "transformers": "5.18.0",
+  "cases": [
+    {
+      "request": {
+        "state": "alpha 2026 urgent",
+        "questions": {
+          "choice": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "beta": "beta",
+              "alpha": "alpha",
+              "gamma": null
+            }
+          },
+          "score": {
+            "type": "score",
+            "instructions": "How urgent?",
+            "criteria": [
+              "0: low",
+              "medium",
+              "high"
+            ]
+          },
+          "plain": {
+            "type": "noul",
+            "instructions": "Is this urgent?"
+          },
+          "described": {
+            "type": "noul",
+            "instructions": "Cancel?",
+            "criteria": {
+              "true": "cancel",
+              "false": "continue"
+            }
+          }
+        }
+      },
+      "answers": {
+        "choice": {
+          "type": "choice",
+          "choice": "gamma",
+          "probabilities": {
+            "beta": 0.3334,
+            "alpha": 0.3331,
+            "gamma": 0.3335
+          },
+          "confidence": 0.0
+        },
+        "score": {
+          "type": "score",
+          "score": 1.0,
+          "confidence": 0.0,
+          "legend": {
+            "0": "0: low",
+            "1": "medium",
+            "2": "high"
+          },
+          "probabilities": {
+            "0": 0.3337,
+            "1": 0.3331,
+            "2": 0.3332
+          }
+        },
+        "plain": {
+          "type": "noul",
+          "noul": 0.3633,
+          "noul_raw": 0.3633
+        },
+        "described": {
+          "type": "noul",
+          "noul": 0.4998,
+          "noul_raw": 0.4998
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "wide": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "0": "alpha",
+              "1": "alpha",
+              "2": "alpha",
+              "3": "alpha",
+              "4": "alpha",
+              "5": "alpha",
+              "6": "alpha",
+              "7": "alpha",
+              "8": "alpha",
+              "9": "alpha",
+              "10": "alpha"
+            }
+          }
+        }
+      },
+      "answers": {
+        "wide": {
+          "type": "choice",
+          "choice": "10",
+          "probabilities": {
+            "0": 0.0909,
+            "1": 0.0909,
+            "2": 0.0909,
+            "3": 0.0909,
+            "4": 0.0909,
+            "5": 0.0909,
+            "6": 0.0909,
+            "7": 0.0909,
+            "8": 0.0909,
+            "9": 0.0909,
+            "10": 0.0909
+          },
+          "confidence": 0.0
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "wide": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "0": "alpha",
+              "1": "alpha",
+              "2": "alpha",
+              "3": "alpha",
+              "4": "alpha",
+              "5": "alpha",
+              "6": "alpha",
+              "7": "alpha",
+              "8": "alpha",
+              "9": "alpha",
+              "10": "alpha",
+              "11": "alpha",
+              "12": "alpha",
+              "13": "alpha",
+              "14": "alpha",
+              "15": "alpha",
+              "16": "alpha",
+              "17": "alpha",
+              "18": "alpha",
+              "19": "alpha",
+              "20": "alpha",
+              "21": "alpha",
+              "22": "alpha",
+              "23": "alpha",
+              "24": "alpha",
+              "25": "alpha",
+              "26": "alpha"
+            }
+          }
+        }
+      },
+      "answers": {
+        "wide": {
+          "type": "choice",
+          "choice": "26",
+          "probabilities": {
+            "0": 0.037,
+            "1": 0.037,
+            "2": 0.037,
+            "3": 0.037,
+            "4": 0.037,
+            "5": 0.037,
+            "6": 0.037,
+            "7": 0.037,
+            "8": 0.037,
+            "9": 0.037,
+            "10": 0.037,
+            "11": 0.037,
+            "12": 0.037,
+            "13": 0.037,
+            "14": 0.037,
+            "15": 0.037,
+            "16": 0.037,
+            "17": 0.037,
+            "18": 0.037,
+            "19": 0.037,
+            "20": 0.037,
+            "21": 0.037,
+            "22": 0.037,
+            "23": 0.037,
+            "24": 0.037,
+            "25": 0.037,
+            "26": 0.037
+          },
+          "confidence": 0.0
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha [MASK] [SEP] beta",
+        "questions": {
+          "marker": {
+            "type": "choice",
+            "instructions": "Select [MASK]",
+            "criteria": {
+              "alpha": "[SEP] alpha",
+              "beta": "beta"
+            }
+          }
+        }
+      },
+      "answers": {
+        "marker": {
+          "type": "choice",
+          "choice": "beta",
+          "probabilities": {
+            "alpha": 0.4999,
+            "beta": 0.5001
+          },
+          "confidence": 0.0
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "object": {
+            "type": "score",
+            "instructions": "How urgent?",
+            "criteria": [
+              {
+                "what": "low",
+                "examples": [
+                  "alpha",
+                  "beta"
+                ]
+              },
+              {
+                "what": "high"
+              }
+            ]
+          }
+        }
+      },
+      "answers": {
+        "object": {
+          "type": "score",
+          "score": 0.5,
+          "confidence": 0.001,
+          "legend": {
+            "0": "low Examples: alpha, beta",
+            "1": "high"
+          },
+          "probabilities": {
+            "0": 0.5005,
+            "1": 0.4995
+          }
+        }
+      }
+    }
+  ]
+}

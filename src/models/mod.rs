@@ -1,11 +1,13 @@
 //! Expose model families and their automatic loader without owning implementations.
 pub mod auto;
 pub mod clef;
+pub mod decider;
 mod decision;
 pub mod laya;
 pub mod modernbert;
 pub mod qwen3_5;
 pub mod vev;
+pub mod von;
 pub mod wald;
 pub(crate) mod weights;
 

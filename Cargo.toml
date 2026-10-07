@@ -69,10 +69,12 @@ allow_attributes_without_reason = "warn"
 bon = "3.10"
 burn = { version = "0.21", default-features = false, features = ["std", "store"] }
 burn-std = { version = "0.21", default-features = false, features = ["std"] }
+burn-store = { version = "0.21", default-features = false, features = ["std", "pytorch"] }
 camino = "1"
 dirs = "7"
 hf-hub = { version = "1", features = ["blocking"] }
 indexmap = { version = "2", features = ["serde"] }
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "2"

@@ -14,6 +14,7 @@ mod utils;
 
 pub use error::{Error, Result};
 pub use models::clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor};
+pub use models::decider::DeciderModel;
 pub use models::laya::{LayaConfig, LayaDecisionModel, LayaModel};
 pub use models::modernbert::ModernBertConfig;
 pub use models::qwen3_5::{
@@ -24,6 +25,7 @@ pub use models::qwen3_5::{
     Qwen3_5TextModel,
 };
 pub use models::vev::VevModel;
+pub use models::von::VonModel;
 pub use models::wald::WaldModel;
 pub use models::{AutoModel, DecisionModel, Device, LoadOptions};
 pub use request::{NoulLabels, PredictOptions, Question, Request, Truncation};

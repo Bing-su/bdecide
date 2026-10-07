@@ -35,6 +35,17 @@ pub(crate) fn attend<B: Backend>(
     padding: Tensor<B, 4, Bool>,
     rope: Option<(f64, Option<usize>)>,
 ) -> Tensor<B, 3> {
+    attend_with_positions(qkv, heads, padding, rope, None)
+}
+
+// Reuse attention with checkpoint-defined positions, e.g. Von restarts every option.
+pub(crate) fn attend_with_positions<B: Backend>(
+    qkv: Tensor<B, 3>,
+    heads: usize,
+    padding: Tensor<B, 4, Bool>,
+    rope: Option<(f64, Option<usize>)>,
+    positions: Option<&[usize]>,
+) -> Tensor<B, 3> {
     let [batch, length, total] = qkv.dims();
     let hidden_size = total / 3;
     let head_width = hidden_size / heads;
@@ -57,6 +68,10 @@ pub(crate) fn attend<B: Backend>(
         let mut cos = Vec::with_capacity(length * head_width);
         let mut sin = Vec::with_capacity(length * head_width);
         for position in 0..length {
+            let position = positions
+                .and_then(|ids| ids.get(position))
+                .copied()
+                .unwrap_or(position);
             for channel in 0..head_width {
                 let exponent = (2 * (channel % (head_width / 2))) as f32 / head_width as f32;
                 let phase = position as f32 * (1.0 / (theta as f32).powf(exponent));
@@ -80,8 +95,17 @@ pub(crate) fn attend<B: Backend>(
             Some(window) => {
                 let local: Vec<bool> = (0..length)
                     .flat_map(|query_position| {
-                        (0..length)
-                            .map(move |key_position| query_position.abs_diff(key_position) > window)
+                        (0..length).map(move |key_position| {
+                            let query = positions
+                                .and_then(|ids| ids.get(query_position))
+                                .copied()
+                                .unwrap_or(query_position);
+                            let key = positions
+                                .and_then(|ids| ids.get(key_position))
+                                .copied()
+                                .unwrap_or(key_position);
+                            query.abs_diff(key) > window
+                        })
                     })
                     .collect();
                 padding.bool_or(Tensor::<B, 4, Bool>::from_data(

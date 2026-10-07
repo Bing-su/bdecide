@@ -1,0 +1,13 @@
+{
+  "temperature": 1.145,
+  "temperature_by_type": {
+    "choice": 1.164,
+    "noul": 1.624,
+    "score": 1.124
+  },
+  "neutralize_none": false,
+  "layout": "plain",
+  "max_options": 255,
+  "max_state_tokens": 32768,
+  "isolated_levels": false
+}

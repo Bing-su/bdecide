@@ -9,7 +9,7 @@ use projections::{ModernBertAttention, ModernBertMLP};
 use super::configuration_modernbert::ModernBertConfig;
 use crate::Result;
 use crate::utils::activation::HiddenActivation;
-use crate::utils::attention::attend;
+use crate::utils::attention::attend_with_positions;
 
 #[derive(Module, Debug)]
 pub(crate) struct ModernBertModel<B: Backend> {
@@ -112,21 +112,48 @@ impl<B: Backend> ModernBertModel<B> {
         }
         self.final_norm.forward(hidden)
     }
+
+    // The same layer weights support isolated option spans, e.g. Von's masked prefix.
+    pub(crate) fn forward_with_positions(
+        &self,
+        ids: Tensor<B, 2, Int>,
+        mask: Tensor<B, 4, Bool>,
+        positions: &[usize],
+    ) -> Tensor<B, 3> {
+        let mut hidden = self
+            .embeddings
+            .norm
+            .forward(self.embeddings.tok_embeddings.forward(ids));
+        for layer in &self.layers {
+            hidden = layer.forward_with_positions(hidden, mask.clone(), Some(positions));
+        }
+        self.final_norm.forward(hidden)
+    }
 }
 
 impl<B: Backend> ModernBertEncoderLayer<B> {
     // Keep a layer's residual steps together without changing checkpoint paths,
     // e.g. attn.Wqkv and mlp.Wi still belong to the same encoder layer.
     fn forward(&self, hidden: Tensor<B, 3>, padding: Tensor<B, 4, Bool>) -> Tensor<B, 3> {
+        self.forward_with_positions(hidden, padding, None)
+    }
+
+    fn forward_with_positions(
+        &self,
+        hidden: Tensor<B, 3>,
+        padding: Tensor<B, 4, Bool>,
+        positions: Option<&[usize]>,
+    ) -> Tensor<B, 3> {
         let normalized = match &self.attn_norm {
             Some(norm) => norm.forward(hidden.clone()),
             None => hidden.clone(),
         };
-        let attention = attend(
+        let attention = attend_with_positions(
             self.attn.Wqkv.forward(normalized),
             self.heads,
             padding,
             Some((self.theta, self.window)),
+            positions,
         );
         let mut hidden = hidden + self.attn.Wo.forward(attention);
         let normalized = self.mlp_norm.forward(hidden.clone());

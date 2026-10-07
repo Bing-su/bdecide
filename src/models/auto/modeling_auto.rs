@@ -12,8 +12,10 @@ use camino::Utf8Path;
 use crate::hub::Artifacts;
 use crate::hub::{Family, HubOptions, ModelSource, resolve_auto};
 use crate::models::clef::ClefModel;
+use crate::models::decider::DeciderModel;
 use crate::models::laya::LayaModel;
 use crate::models::vev::VevModel;
+use crate::models::von::VonModel;
 use crate::models::wald::WaldModel;
 use crate::{DecisionModel, Error, Metadata, Request, Response, Result};
 
@@ -129,6 +131,8 @@ impl AutoModel {
             Family::Clef => Box::new(ClefModel::<B>::load(root, device, metadata)?),
             Family::Vev => Box::new(VevModel::<B>::load(root, device, metadata)?),
             Family::Wald => Box::new(WaldModel::<B>::load(root, device, metadata)?),
+            Family::Decider => Box::new(DeciderModel::<B>::load(root, device, metadata)?),
+            Family::Von => Box::new(VonModel::<B>::load(root, device, metadata)?),
         };
         Ok(Self { model })
     }
