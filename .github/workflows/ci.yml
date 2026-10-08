@@ -22,12 +22,17 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: jdx/mr-boxington-action@v1
-      - run: mbx fmt --check
+      - run: mbx +nightly fmt --check
       - run: mbx test --locked --all-targets
       - run: mbx clippy --locked --all-targets -- -D warnings
 
   wgpu:
     runs-on: ubuntu-latest
+    env:
+      # Keep inference checks on Mesa software devices, e.g. avoid OpenGL hardware fallback.
+      XDG_RUNTIME_DIR: /tmp/bdecide-wgpu-runtime
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      CUBECL_WGPU_DEFAULT_DEVICE: Cpu
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -36,8 +41,14 @@ jobs:
       - uses: jdx/mr-boxington-action@v1
 
       - name: Install Mesa Vulkan Drivers
-        run: sudo apt update && sudo apt install -y mesa-vulkan-drivers
+        run: |
+          sudo apt update && sudo apt install -y mesa-vulkan-drivers
+          mkdir -p "$XDG_RUNTIME_DIR"
+          # Accept Mesa's distro-specific ICD filename, e.g. lvp_icd.x86_64.json.
+          mesa_icd="$(rg --files /usr/share/vulkan/icd.d | rg '/lvp_icd[^/]*\.json$')"
+          printf 'VK_DRIVER_FILES=%s\n' "$mesa_icd" >> "$GITHUB_ENV"
       - run: mbx test --locked --no-default-features --features wgpu --all-targets
       - run: mbx clippy --locked --no-default-features --features wgpu --all-targets -- -D warnings
-      - run: mbx test --locked --no-default-features --features wgpu --test wgpu wgpu_initializes_and_reads_back_small_tensor -- --ignored --exact --test-threads=1
+      # Compare complete inference with Python, e.g. long Qwen inputs expose binding-limit bugs.
+      - run: mbx test --locked --no-default-features --features wgpu --all-targets -- --ignored --nocapture --test-threads=1
       - run: mbx test --locked --features wgpu --test wgpu invalid_wgpu_configuration_keeps_jsonl_requests_recoverable

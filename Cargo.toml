@@ -92,7 +92,9 @@ wiremock = "0.6"
 [features]
 default = ["cpu"]
 cpu = ["burn/flex"]
-wgpu = ["burn/autotune", "burn/fusion", "burn/wgpu"]
+# Keep autotune and fusion disabled until GPU crashes and binding limits are resolved,
+# e.g. long Qwen sequences exceed WGPU's storage-buffer limit with fusion enabled.
+wgpu = ["burn/wgpu"]
 
 [lints]
 workspace = true

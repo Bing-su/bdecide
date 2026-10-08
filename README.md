@@ -14,6 +14,9 @@ to direct model loaders; `AutoModel` and the CLI retain their `cpu`, `wgpu`, and
 | WGPU | `wgpu` | `burn::tensor::Device::wgpu(Default::default())` |
 | Both | `cpu,wgpu` | Select either device explicitly |
 
+WGPU temporarily disables autotune and fusion while GPU crashes and fusion
+storage-buffer binding limits are investigated.
+
 ```rust,ignore
 use bdecide::Qwen3_5ForCausalLM;
 use burn::tensor::Device;
@@ -57,4 +60,16 @@ cases unexecuted; the smoke test does not establish model inference stability.
 
 ```sh
 cargo test --locked --no-default-features --features wgpu --lib models::clef::modeling_clef::activation_tests::wgpu_matches_python_activation_options::case_01_gelu -- --ignored --exact --nocapture --test-threads=1
+```
+
+CI also runs every adapter-dependent inference test, including long Qwen sequences,
+against the pinned Python reference fixtures. Reproduce the Mesa software checks with:
+
+```sh
+export VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json
+export XDG_RUNTIME_DIR=/tmp/bdecide-wgpu-runtime
+export LIBGL_ALWAYS_SOFTWARE=1
+export CUBECL_WGPU_DEFAULT_DEVICE=Cpu
+mkdir -p "$XDG_RUNTIME_DIR"
+cargo test --locked --no-default-features --features wgpu --all-targets -- --ignored --nocapture --test-threads=1
 ```

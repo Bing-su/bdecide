@@ -771,8 +771,6 @@ dependencies = [
  "burn-cuda",
  "burn-derive",
  "burn-dispatch",
- "burn-fusion",
- "burn-ir",
  "burn-pack",
  "burn-rocm",
  "burn-std",
@@ -798,7 +796,6 @@ checksum = "efbc609c47a94da305ebae3be9b5157786a89892a9ba70d9b624cf3bd584ef08"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
- "burn-fusion",
  "cubecl",
 ]
 
@@ -849,7 +846,6 @@ checksum = "2b9dafae3e972b58c19aa95f0d6559a3a013d0e694571c8e1309f9ef54f7eb26"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
- "burn-fusion",
  "cubecl",
 ]
 
@@ -878,7 +874,6 @@ dependencies = [
  "burn-cubecl",
  "burn-flex",
  "burn-ndarray",
- "burn-remote",
  "burn-tch",
  "paste",
  "portable-atomic",
@@ -1010,29 +1005,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-remote"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12bcefaa20b2c5b06e53b76f4a7548d8d2647e8c8284ac3dfaca29a19aa17385"
-dependencies = [
- "burn-backend",
- "burn-fusion",
- "burn-ir",
- "burn-router",
- "burn-std",
- "bytes",
- "futures-util",
- "gloo-timers",
- "log",
- "rand 0.10.3",
- "rmp-serde",
- "serde",
- "serde_bytes",
- "tokio",
- "wasm-bindgen-futures",
-]
-
-[[package]]
 name = "burn-rocm"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1040,24 +1012,7 @@ checksum = "e8b3e7c8257164ff4f25056d8ac6d082dce81e995ae67e317691cfe981324c37"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
- "burn-fusion",
  "cubecl",
-]
-
-[[package]]
-name = "burn-router"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9677e62a9dcee0bc54f09ac238ad8851f78b3994ba9d63e136d23326c028712e"
-dependencies = [
- "burn-backend",
- "burn-fusion",
- "burn-ir",
- "burn-std",
- "hashbrown 0.16.1",
- "portable-atomic",
- "serde",
- "spin 0.12.3",
 ]
 
 [[package]]
@@ -1160,7 +1115,6 @@ dependencies = [
  "bon",
  "burn-core",
  "burn-cubecl",
- "burn-fusion",
  "burn-std",
  "bytemuck",
  "cubecl",
@@ -1180,7 +1134,6 @@ checksum = "c890fd874ff2d16a97d796be23c4b28ec4f4ad9a90c91b4afc06fbbedc89a291"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
- "burn-fusion",
  "cubecl",
 ]
 
@@ -2773,7 +2726,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccc5801fd11762e24d1e420d01d2ac518f2a2ca4329d4fbb6639f2412b6204e0"
 dependencies = [
  "enumset_derive",
- "serde",
 ]
 
 [[package]]
@@ -3409,18 +3361,6 @@ dependencies = [
  "log",
  "regex-automata",
  "regex-syntax",
-]
-
-[[package]]
-name = "gloo-timers"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "482ce8a491a501da4cd806bd190275363d674f2845005c6ddbd5d3e1dd54495d"
-dependencies = [
- "futures-channel",
- "futures-core",
- "js-sys",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -6091,25 +6031,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rmp"
-version = "0.8.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba8be72d372b2c9b35542551678538b562e7cf86c3315773cae48dfbfe7790c"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "rmp-serde"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72f81bee8c8ef9b577d1681a70ebbc962c232461e397b22c208c43c04b67a155"
-dependencies = [
- "rmp",
- "serde",
-]
-
-[[package]]
 name = "roaring"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6609,16 +6530,6 @@ dependencies = [
  "scoped-tls",
  "smallvec",
  "tracing",
-]
-
-[[package]]
-name = "signal-hook-registry"
-version = "1.4.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
-dependencies = [
- "errno",
- "libc",
 ]
 
 [[package]]
@@ -7136,7 +7047,6 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",
