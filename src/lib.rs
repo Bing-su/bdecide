@@ -1,7 +1,7 @@
 //! Local typed decisions with reusable models and explicit loading effects.
 //!
 //! Parse a [`Request`] from JSON, load an [`AutoModel`] once, and reuse its
-//! [`DecisionModel::predict`] method for successive requests.
+//! [`DecisionModel::system_one`] method for successive requests.
 
 #![recursion_limit = "256"]
 

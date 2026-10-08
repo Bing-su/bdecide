@@ -165,7 +165,7 @@ impl DecisionModel for WaldModel {
         clippy::float_cmp,
         reason = "temperature=1 exactly preserves the upstream uncalibrated probabilities"
     )]
-    fn predict(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &Request) -> Result<Response> {
         self.readout.validate(request)?;
         for question in request.questions.values() {
             if matches!(question, Question::Choice { criteria, .. } if criteria.len() > 255)

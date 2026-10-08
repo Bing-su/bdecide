@@ -199,7 +199,7 @@ fn verify(variant: &str, device: Device, backend_device: &BurnDevice) {
         let request: Request = serde_json::from_value(case["request"].clone())
             .expect("reference fixtures and predictions must be valid");
         let response = model
-            .predict(&request)
+            .system_one(&request)
             .expect("reference fixtures and predictions must be valid");
         let actual = serde_json::to_value(&response)
             .expect("reference fixtures and predictions must be valid");
@@ -278,30 +278,30 @@ fn validates_budgets_and_reports_state_loss(#[case] variant: &str) {
     let mut request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(1000), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
     request.options.max_len = Some(700);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.options.truncation = Truncation::Truncate;
-    let response = model.predict(&request).unwrap();
+    let response = model.system_one(&request).unwrap();
     assert_eq!(response.usage.input_tokens, 700);
     assert!(response.usage.truncated);
     assert!(response.usage.state_tokens_dropped > 0);
     assert_eq!(response.usage.truncated_questions, ["q"]);
     request.options.max_len = Some(4);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.options.max_len = None;
     request.options.head_max_len = Some(16);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.options.head_max_len = None;
     request.questions.clear();
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
 }
@@ -385,13 +385,13 @@ async fn hub_protocol_artifacts_stay_pinned_and_load_offline(#[case] variant: &s
         })
         .unwrap()
     };
-    let online = serde_json::to_value(load(options.clone()).predict(&request).unwrap()).unwrap();
+    let online = serde_json::to_value(load(options.clone()).system_one(&request).unwrap()).unwrap();
     assert_eq!(online["metadata"]["commit_sha"], sha);
     assert_eq!(online["metadata"]["revision"], "main");
     options.local_files_only = true;
     assert_eq!(
         online,
-        serde_json::to_value(load(options).predict(&request).unwrap()).unwrap()
+        serde_json::to_value(load(options).system_one(&request).unwrap()).unwrap()
     );
     server.verify().await;
 }

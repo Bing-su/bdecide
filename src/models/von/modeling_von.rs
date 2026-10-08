@@ -264,7 +264,7 @@ impl DecisionModel for VonModel {
         &self.metadata
     }
 
-    fn predict(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &Request) -> Result<Response> {
         request.validate()?;
         if request.questions.is_empty()
             || request.options.head_max_len.is_some()

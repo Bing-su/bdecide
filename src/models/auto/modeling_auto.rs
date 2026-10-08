@@ -134,10 +134,10 @@ impl AutoModel {
     }
 }
 impl DecisionModel for AutoModel {
-    fn predict(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &Request) -> Result<Response> {
         // Backend errors may be panics (e.g. device loss). Keep JSONL processing
         // recoverable instead of letting one backend failure terminate the CLI.
-        catch_unwind(AssertUnwindSafe(|| self.model.predict(request))).map_err(|_panic| {
+        catch_unwind(AssertUnwindSafe(|| self.model.system_one(request))).map_err(|_panic| {
             Error::Inference("Burn backend failed while executing the request".into())
         })?
     }

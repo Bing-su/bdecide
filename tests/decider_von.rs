@@ -104,7 +104,7 @@ fn verify(name: &str, device: Device) {
         let request: Request = serde_json::from_value(case["request"].clone())
             .expect("reference fixture and prediction must be valid");
         let response = model
-            .predict(&request)
+            .system_one(&request)
             .expect("reference fixture and prediction must be valid");
         compare(
             &serde_json::to_value(&response.answers)
@@ -157,21 +157,21 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
         serde_json::from_value(reference(name)["cases"][0]["request"].clone())
             .expect("reference fixture and prediction must be valid");
     let expected = serde_json::to_value(
-        auto.predict(&request)
+        auto.system_one(&request)
             .expect("reference fixture and prediction must be valid")
             .answers,
     )
     .expect("reference fixture and prediction must be valid");
     assert_eq!(
         expected,
-        serde_json::to_value(direct.predict(&request).unwrap().answers).unwrap()
+        serde_json::to_value(direct.system_one(&request).unwrap().answers).unwrap()
     );
     let all = request.questions.clone();
     for (id, question) in all {
         request.questions.clear();
         request.questions.insert(id.clone(), question);
         let actual = serde_json::to_value(
-            auto.predict(&request)
+            auto.system_one(&request)
                 .expect("reference fixture and prediction must be valid")
                 .answers,
         )
@@ -190,7 +190,7 @@ fn von_options_are_order_invariant() {
     request.questions.retain(|id, _| id == "choice");
     let before = serde_json::to_value(
         model
-            .predict(&request)
+            .system_one(&request)
             .expect("reference fixture and prediction must be valid")
             .answers,
     )
@@ -200,7 +200,7 @@ fn von_options_are_order_invariant() {
     }
     let after = serde_json::to_value(
         model
-            .predict(&request)
+            .system_one(&request)
             .expect("reference fixture and prediction must be valid")
             .answers,
     )
@@ -240,11 +240,11 @@ fn decider_score_preserves_levels_with_small_choice_limit() {
         serde_json::from_value(reference("tiny-decider-list")["cases"][0]["request"].clone())
             .unwrap();
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.questions.retain(|id, _| id == "score");
-    let response = model.predict(&request).unwrap();
+    let response = model.system_one(&request).unwrap();
     let bdecide::Answer::Score {
         probabilities,
         legend,
@@ -274,12 +274,12 @@ fn budgets_preserve_options_and_report_lost_state(#[case] name: &str) {
     let mut request: Request = serde_json::from_value(serde_json::json!({"state":"alpha ".repeat(500), "questions":{"q":{"type":"choice","instructions":"Select", "criteria":{"alpha":null,"beta":null}}}})).expect("reference fixture and prediction must be valid");
     request.options.max_len = Some(100);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.options.truncation = Truncation::Truncate;
     let response = model
-        .predict(&request)
+        .system_one(&request)
         .expect("reference fixture and prediction must be valid");
     assert_eq!(response.usage.input_tokens, 100);
     assert!(response.usage.truncated);
@@ -287,18 +287,18 @@ fn budgets_preserve_options_and_report_lost_state(#[case] name: &str) {
     assert_eq!(response.usage.truncated_questions, ["q"]);
     request.options.max_len = Some(4);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.options.max_len = Some(4097);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
     request.options.max_len = None;
     request.options.head_max_len = Some(16);
     assert!(matches!(
-        model.predict(&request),
+        model.system_one(&request),
         Err(Error::InvalidRequest(_))
     ));
 }
@@ -402,21 +402,22 @@ async fn hub_revisions_stay_pinned_and_load_offline(#[case] name: &str) {
     options.token = Token::Anonymous;
     let request: Request = serde_json::from_value(reference(name)["cases"][0]["request"].clone())
         .expect("reference request must be valid");
-    let predict = |options| {
+    let system_one = |options| {
         AutoModel::from_pretrained(LoadOptions {
             source: ModelSource::Hub(options),
             device: Device::Cpu,
         })
         .expect("pinned artifacts must load")
-        .predict(&request)
+        .system_one(&request)
         .expect("reference request must predict")
     };
-    let online = serde_json::to_value(predict(options.clone())).expect("response must serialize");
+    let online =
+        serde_json::to_value(system_one(options.clone())).expect("response must serialize");
     assert_eq!(online["metadata"]["commit_sha"], sha);
     options.local_files_only = true;
     assert_eq!(
         online,
-        serde_json::to_value(predict(options)).expect("offline response must serialize")
+        serde_json::to_value(system_one(options)).expect("offline response must serialize")
     );
     server.verify().await;
 }

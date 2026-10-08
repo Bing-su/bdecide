@@ -288,13 +288,13 @@ mod cpu {
             json!({"state":"alpha", "questions":{"q":{"type":"noul","instructions":"cancel?"}}}),
         )
         .unwrap();
-        let expected = serde_json::to_value(direct.predict(&request).unwrap()).unwrap();
+        let expected = serde_json::to_value(direct.system_one(&request).unwrap()).unwrap();
         assert_eq!(
-            serde_json::to_value(via_new.predict(&request).unwrap()).unwrap(),
+            serde_json::to_value(via_new.system_one(&request).unwrap()).unwrap(),
             expected
         );
         assert_eq!(
-            serde_json::to_value(built.predict(&request).unwrap()).unwrap(),
+            serde_json::to_value(built.system_one(&request).unwrap()).unwrap(),
             expected
         );
         let device = BurnDevice::flex();
@@ -305,7 +305,7 @@ mod cpu {
         } else {
             Box::new(ClefModel::from_pretrained(&root, &device).unwrap())
         };
-        let expected = serde_json::to_value(reference.predict(&request).unwrap()).unwrap();
+        let expected = serde_json::to_value(reference.system_one(&request).unwrap()).unwrap();
         let models: Vec<Box<dyn DecisionModel>> = if name == "tiny-laya" {
             vec![
                 Box::new(LayaModel::new(&root, &device).unwrap()),
@@ -331,7 +331,7 @@ mod cpu {
         };
         for model in models {
             assert_eq!(
-                serde_json::to_value(model.predict(&request).unwrap()).unwrap(),
+                serde_json::to_value(model.system_one(&request).unwrap()).unwrap(),
                 expected
             );
         }

@@ -174,7 +174,7 @@ fn predict_request(args: &Predict, model: &mut Option<AutoModel>, text: &str) ->
         Some(model) => model,
         None => model.insert(AutoModel::from_pretrained(load_options(args))?),
     };
-    model.predict(&request)
+    model.system_one(&request)
 }
 
 fn load_options(args: &Predict) -> LoadOptions {

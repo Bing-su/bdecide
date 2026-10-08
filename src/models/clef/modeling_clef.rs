@@ -454,7 +454,7 @@ impl DecisionModel for ClefModel {
         &self.metadata
     }
 
-    fn predict(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &Request) -> Result<Response> {
         let record = self.processor.process(request)?;
         let logits = self.forward(&record)?;
         let mut answers = IndexMap::new();
@@ -726,7 +726,7 @@ mod tests {
                     );
                 }
             }
-            let response = serde_json::to_value(model.predict(&request).unwrap()).unwrap();
+            let response = serde_json::to_value(model.system_one(&request).unwrap()).unwrap();
             for (id, expected) in case["answers"].as_object().unwrap() {
                 let actual = &response["answers"][id];
                 for (key, expected) in expected.as_object().unwrap() {

@@ -75,7 +75,7 @@ impl DecisionModel for VevModel {
         &self.metadata
     }
 
-    fn predict(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &Request) -> Result<Response> {
         self.readout.validate(request)?;
         for question in request.questions.values() {
             validate_question(question)?;

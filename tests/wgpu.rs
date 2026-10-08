@@ -118,7 +118,7 @@ fn wgpu_matches_independent_python_answers(#[case] device: Device) {
         if !text_only {
             continue;
         }
-        let mut actual = serde_json::to_value(model.predict(&request).unwrap()).unwrap();
+        let mut actual = serde_json::to_value(model.system_one(&request).unwrap()).unwrap();
         let mut expected = case["response"]["answers"].clone();
         // Ignore JSON text formatting in legends, e.g. ["beta",null] and ["beta", null].
         for answers in [&mut actual["answers"], &mut expected] {
@@ -173,7 +173,7 @@ fn clef_wgpu_processes_text_and_json_requests(#[case] variant: &str) {
     for case in reference["cases"].as_array().unwrap() {
         let request = serde_json::from_value(case["request"].clone()).unwrap();
         let encoded = processor.process(&request).unwrap();
-        let response = serde_json::to_value(model.predict(&request).unwrap()).unwrap();
+        let response = serde_json::to_value(model.system_one(&request).unwrap()).unwrap();
         assert_eq!(
             response["answers"].as_object().unwrap().len(),
             request.questions.len()

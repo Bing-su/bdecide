@@ -32,8 +32,8 @@ fn auto_model_dispatches_from_artifacts_and_reuses_weights(#[case] variant: &str
     })
     .unwrap();
     assert_eq!(model.metadata().architecture, "clef");
-    let first = serde_json::to_value(model.predict(&request()).unwrap()).unwrap();
-    let second = serde_json::to_value(model.predict(&request()).unwrap()).unwrap();
+    let first = serde_json::to_value(model.system_one(&request()).unwrap()).unwrap();
+    let second = serde_json::to_value(model.system_one(&request()).unwrap()).unwrap();
     assert_eq!(first, second);
     assert_eq!(first["usage"]["output_tokens"], 0);
 }
@@ -90,7 +90,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
         device: Device::Cpu,
     })
     .unwrap();
-    let online = serde_json::to_value(model.predict(&request()).unwrap()).unwrap();
+    let online = serde_json::to_value(model.system_one(&request()).unwrap()).unwrap();
     assert_eq!(online["metadata"]["commit_sha"], sha);
     assert_eq!(online["metadata"]["revision"], "main");
     options.local_files_only = true;
@@ -101,7 +101,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
     .unwrap();
     assert_eq!(
         online,
-        serde_json::to_value(model.predict(&request()).unwrap()).unwrap()
+        serde_json::to_value(model.system_one(&request()).unwrap()).unwrap()
     );
     assert!(
         server

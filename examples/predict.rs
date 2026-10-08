@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let request: Request = serde_json::from_str(include_str!("request.json"))?;
     println!(
         "{}",
-        serde_json::to_string_pretty(&model.predict(&request)?)?
+        serde_json::to_string_pretty(&model.system_one(&request)?)?
     );
     Ok(())
 }

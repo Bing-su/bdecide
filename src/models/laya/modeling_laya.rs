@@ -173,7 +173,7 @@ impl DecisionModel for LayaModel {
         &self.metadata
     }
 
-    fn predict(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &Request) -> Result<Response> {
         let batch = self.processor.process(request)?;
         let raw = self.forward(&batch)?;
         let mut answers = IndexMap::new();
@@ -531,7 +531,7 @@ mod tests {
             for (actual, expected) in raw.actions.iter().zip(case["actions"].as_array().unwrap()) {
                 assert!((f64::from(*actual) - expected.as_f64().unwrap()).abs() < logit_epsilon);
             }
-            let mut actual = serde_json::to_value(model.predict(&request).unwrap()).unwrap();
+            let mut actual = serde_json::to_value(model.system_one(&request).unwrap()).unwrap();
             let mut expected = case["response"]["answers"].clone();
             // Compare JSON-valued legends by content, e.g. {"a":1} equals {"a": 1}.
             for answers in [&mut actual["answers"], &mut expected] {
@@ -604,7 +604,7 @@ mod tests {
         let model = LayaModel::from_pretrained(&root, &BurnDevice::flex()).unwrap();
         let request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(100),"questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
         assert!(matches!(
-            model.predict(&request),
+            model.system_one(&request),
             Err(Error::InvalidRequest(_))
         ));
     }
