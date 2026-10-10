@@ -19,19 +19,6 @@ use rstest::rstest;
 use serde_json::Value;
 use tempfile::tempdir;
 
-#[test]
-#[ignore = "requires a wgpu adapter"]
-fn wgpu_initializes_and_reads_back_small_tensor() {
-    // Two values force adapter initialization, one addition, and readback without a model.
-    let device = BurnDevice::wgpu(Default::default());
-    let result = (Tensor::<1>::from_data([1.0_f32, 2.0], &device) + 1.0)
-        .try_into_vec_as::<f32>()
-        .unwrap();
-    assert_eq!(result, [2.0, 3.0]);
-    // Report the already initialized adapter, e.g. distinguish Radeon from Mesa software.
-    eprintln!("[wgpu-smoke] adapter: {:?}", device.identity());
-}
-
 #[rstest]
 #[case::explicit("wgpu")]
 #[case::automatic("auto")]

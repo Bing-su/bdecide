@@ -8,11 +8,11 @@ Models and tensors no longer take a backend type parameter. Pass a Burn device
 to direct model loaders; `AutoModel` and the CLI retain their `cpu`, `wgpu`, and
 `auto` selections.
 
-| Execution | Cargo features | Direct loader device |
-| --- | --- | --- |
-| CPU | `cpu` (default) | `burn::tensor::Device::flex()` |
-| WGPU | `wgpu` | `burn::tensor::Device::wgpu(Default::default())` |
-| Both | `cpu,wgpu` | Select either device explicitly |
+| Execution | Cargo features  | Direct loader device                             |
+| --------- | --------------- | ------------------------------------------------ |
+| CPU       | `cpu` (default) | `burn::tensor::Device::flex()`                   |
+| WGPU      | `wgpu`          | `burn::tensor::Device::wgpu(Default::default())` |
+| Both      | `cpu,wgpu`      | Select either device explicitly                  |
 
 WGPU temporarily disables autotune and fusion while GPU crashes and fusion
 storage-buffer binding limits are investigated.
@@ -30,18 +30,6 @@ let model = Qwen3_5ForCausalLM::from_pretrained(Utf8Path::new("checkpoint"), &de
 Existing Transformers SafeTensors and PyTorch `.pt` checkpoints keep their weight
 names and layouts. Loading still rejects missing, unexpected, malformed, and
 non-finite weights before replacing the model.
-
-The minimal WGPU check initializes an adapter, adds one to two values, and reads them
-back. Run it explicitly on a stable GPU host; larger inference tests remain opt-in.
-
-```sh
-cargo test --locked --no-default-features --features wgpu --test wgpu wgpu_initializes_and_reads_back_small_tensor -- --ignored --exact --nocapture --test-threads=1
-```
-
-The smoke test prints the selected adapter after readback. `VK_DRIVER_FILES` only
-restricts Vulkan drivers: automatic WGPU selection can still prefer a hardware
-OpenGL adapter over software Vulkan. To require software Vulkan in direct loaders,
-select both the API and device explicitly:
 
 ```rust,ignore
 use burn::tensor::{Device, DeviceKind, wgpu::WgpuBackend};

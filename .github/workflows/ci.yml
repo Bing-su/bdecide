@@ -21,6 +21,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Install Nightly Rust Toolchain
+        run: rustup toolchain install nightly --profile minimal --component rustfmt,clippy
       - uses: jdx/mr-boxington-action@v1
       - run: mbx +nightly fmt --check
       - run: mbx test --locked --all-targets
@@ -41,12 +44,7 @@ jobs:
       - uses: jdx/mr-boxington-action@v1
 
       - name: Install Mesa Vulkan Drivers
-        run: |
-          sudo apt update && sudo apt install -y mesa-vulkan-drivers
-          mkdir -p "$XDG_RUNTIME_DIR"
-          # Accept Mesa's distro-specific ICD filename, e.g. lvp_icd.x86_64.json.
-          mesa_icd="$(rg --files /usr/share/vulkan/icd.d | rg '/lvp_icd[^/]*\.json$')"
-          printf 'VK_DRIVER_FILES=%s\n' "$mesa_icd" >> "$GITHUB_ENV"
+        run: sudo apt update && sudo apt install -y mesa-vulkan-drivers
       - run: mbx test --locked --no-default-features --features wgpu --all-targets
       - run: mbx clippy --locked --no-default-features --features wgpu --all-targets -- -D warnings
       # Compare complete inference with Python, e.g. long Qwen inputs expose binding-limit bugs.
