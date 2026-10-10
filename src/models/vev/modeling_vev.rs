@@ -6,7 +6,8 @@ use indexmap::IndexMap;
 use super::configuration_vev::VevConfig;
 use super::processing_vev::{prompt, render_state};
 use crate::hub::{self, ModelSource};
-use crate::models::qwen3_5::readout::{Readout, answer, choice_confidence};
+use crate::models::qwen3_5::readout::Readout;
+use crate::utils::decision::{answer, choice_confidence};
 use crate::utils::{read_checkpoint_json, sanitize};
 use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 

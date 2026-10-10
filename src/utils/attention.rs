@@ -4,6 +4,8 @@ use burn::tensor::ops::AttentionModuleOptions;
 use burn::tensor::{Bool, Tensor, TensorData, module};
 use burn_std::s;
 
+use super::rotary::apply_rotary;
+
 // Centralize Burn's Flash input contract, e.g. transposed QKV and broadcast padding.
 pub(crate) fn attention(
     query: Tensor<4>,
@@ -81,14 +83,6 @@ pub(crate) fn attend_with_positions(
         }
         let cos = Tensor::<4>::from_data(TensorData::new(cos, [1, 1, length, head_width]), &device);
         let sin = Tensor::<4>::from_data(TensorData::new(sin, [1, 1, length, head_width]), &device);
-        let apply_rotary = |hidden: Tensor<4>| {
-            // Split rotary channels while keeping every batch, head, and position.
-            let first_half = hidden.clone().slice(s![.., .., .., 0..head_width / 2]);
-            let second_half = hidden
-                .clone()
-                .slice(s![.., .., .., head_width / 2..head_width]);
-            hidden * cos.clone() + Tensor::cat(vec![-second_half, first_half], 3) * sin.clone()
-        };
         let mask = match window {
             Some(window) => {
                 let local: Vec<bool> = (0..length)
@@ -113,7 +107,11 @@ pub(crate) fn attend_with_positions(
             }
             None => padding,
         };
-        (apply_rotary(query), apply_rotary(key), mask)
+        (
+            apply_rotary(query, cos.clone(), sin.clone()),
+            apply_rotary(key, cos, sin),
+            mask,
+        )
     } else {
         (query, key, padding)
     };

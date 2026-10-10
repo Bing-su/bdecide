@@ -10,8 +10,8 @@ use super::configuration_von::VonConfig;
 use super::processing_von::{self, SpecialTokens};
 use crate::hub::{self, ModelSource};
 use crate::models::modernbert::{ModernBertConfig, ModernBertModel};
-use crate::models::qwen3_5::readout::{answer, choice_confidence, softmax};
 use crate::models::weights;
+use crate::utils::decision::{answer, choice_confidence, softmax};
 use crate::utils::{load_tokenizer, read_checkpoint_json};
 use crate::{
     DecisionModel,

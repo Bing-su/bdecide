@@ -1,7 +1,7 @@
 //! Share typed decision output, e.g. each model supplies its own true-label index.
 use burn::tensor::Tensor;
 
-use crate::models::qwen3_5::readout::{self, softmax};
+use crate::utils::decision::{self, softmax};
 use crate::utils::render;
 use crate::{Answer, Error, Question, Result};
 
@@ -20,5 +20,5 @@ pub(super) fn answer(q: &Question, logits: &[f64], true_index: usize) -> Result<
     } else {
         Vec::new()
     };
-    readout::answer(q, probabilities, confidence, legend, true_index)
+    decision::answer(q, probabilities, confidence, legend, true_index)
 }

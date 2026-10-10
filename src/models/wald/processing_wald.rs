@@ -1,6 +1,7 @@
 //! Preserve Wald's training prompts and renderer, e.g. repeated state spans.
 use std::ops::Range;
 
+use itertools::{Itertools, izip};
 use serde_json::Value;
 
 use crate::Question;
@@ -49,12 +50,7 @@ pub(super) fn prompt(
                 byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"_.-".contains(&byte)
             })
     };
-    let keys: Vec<_> = if options.iter().all(|text| slug(text))
-        && options
-            .iter()
-            .enumerate()
-            .all(|(i, text)| !options.iter().take(i).any(|previous| previous == text))
-    {
+    let keys: Vec<_> = if options.iter().all(|text| slug(text)) && options.iter().all_unique() {
         options.to_vec()
     } else {
         (b'a'..=b'z')
@@ -72,7 +68,7 @@ pub(super) fn prompt(
                 !suffix.is_empty() && suffix.bytes().all(|byte| byte.is_ascii_digit())
             })
     });
-    for ((option, key), letter) in options.iter().zip(&keys).zip(b'A'..=b'Z') {
+    for (option, key, letter) in izip!(options, &keys, b'A'..=b'Z') {
         let option = if matches!(question, Question::Choice { .. }) && positional {
             option.strip_prefix(&format!("{key}: ")).unwrap_or(option)
         } else {
@@ -95,7 +91,6 @@ pub(super) fn render(value: &Value, depth: usize) -> String {
         Value::Array(values) => values
             .iter()
             .map(|value| format!("{pad}- {}", render(value, depth + 1).trim_start()))
-            .collect::<Vec<_>>()
             .join("\n"),
         Value::Object(fields) => fields
             .iter()
@@ -106,7 +101,6 @@ pub(super) fn render(value: &Value, depth: usize) -> String {
                     format!("{pad}{key}: {}", render(value, 0))
                 }
             })
-            .collect::<Vec<_>>()
             .join("\n"),
     }
 }

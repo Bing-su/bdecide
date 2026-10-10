@@ -18,6 +18,7 @@ use super::weights::{backbone_files, backbone_name, load_causal_lm};
 use crate::models::weights;
 use crate::utils::activation::HiddenActivation;
 use crate::utils::attention::attention;
+use crate::utils::rotary::apply_rotary;
 use crate::{Error, Result};
 
 /// Qwen3.5's text backbone, matching `model.language_model` in Transformers.
@@ -554,9 +555,14 @@ impl Qwen3_5Attention {
             self.v_proj
                 .forward(hidden)
                 .reshape([batch, length, self.kv_heads, self.head_dim]);
-        let query = self.rotate(query);
-        let key = repeat_heads(self.rotate(key).swap_dims(1, 2), self.heads / self.kv_heads)
-            .swap_dims(1, 2);
+        // Q/K share positions, e.g. generate the same rotary table only once per attention call.
+        let (cos, sin) = self.rotary(length, &query.device());
+        let query = apply_rotary(query, cos.clone(), sin.clone());
+        let key = repeat_heads(
+            apply_rotary(key, cos, sin).swap_dims(1, 2),
+            self.heads / self.kv_heads,
+        )
+        .swap_dims(1, 2);
         let value = repeat_heads(value, self.heads / self.kv_heads).swap_dims(1, 2);
         // Use causal mode so Burn can avoid a dense triangle, e.g. during full-record inference.
         let output = attention(
@@ -574,8 +580,7 @@ impl Qwen3_5Attention {
         self.o_proj.forward(output * sigmoid(gate))
     }
 
-    fn rotate(&self, input: Tensor<4>) -> Tensor<4> {
-        let [_, _, length, _] = input.dims();
+    fn rotary(&self, length: usize, device: &BurnDevice) -> (Tensor<4>, Tensor<4>) {
         let mut cosine = Vec::new();
         let mut sine = Vec::new();
         for pos in 0..length {
@@ -590,27 +595,13 @@ impl Qwen3_5Attention {
         }
         let cosine = Tensor::<4>::from_data(
             TensorData::new(cosine, [1, 1, length, self.rotary_dim]),
-            &input.device(),
+            device,
         );
         let sine = Tensor::<4>::from_data(
             TensorData::new(sine, [1, 1, length, self.rotary_dim]),
-            &input.device(),
+            device,
         );
-        let first = input.clone().slice(s![.., .., .., ..self.rotary_dim / 2]);
-        let second = input
-            .clone()
-            .slice(s![.., .., .., self.rotary_dim / 2..self.rotary_dim]);
-        let rotated = input.clone().slice(s![.., .., .., ..self.rotary_dim]) * cosine
-            + Tensor::cat(vec![-second, first], 3) * sine;
-        // Text has identical positions on all mRoPE axes; retain the non-rotary tail.
-        if self.rotary_dim == self.head_dim {
-            rotated
-        } else {
-            Tensor::cat(
-                vec![rotated, input.slice(s![.., .., .., self.rotary_dim..])],
-                3,
-            )
-        }
+        (cosine, sine)
     }
 }
 

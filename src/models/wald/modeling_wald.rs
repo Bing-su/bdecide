@@ -6,7 +6,8 @@ use indexmap::IndexMap;
 use super::configuration_wald::{Temperature, WaldConfig};
 use super::processing_wald::{option_text, prompt, render};
 use crate::hub::{self, ModelSource};
-use crate::models::qwen3_5::readout::{Readout, answer, argmax, choice_confidence, softmax};
+use crate::models::qwen3_5::readout::Readout;
+use crate::utils::decision::{answer, argmax, choice_confidence, softmax};
 use crate::utils::{read_checkpoint_json, sanitize};
 use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 

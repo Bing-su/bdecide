@@ -15,8 +15,9 @@ use burn::signal::{StftOptions, hann_window, stft};
 use burn::tensor::activation::{gelu, glu, relu, silu, softmax};
 use burn::tensor::module::batch_norm;
 use burn::tensor::ops::PadMode;
-use burn::tensor::{Bool, Device, Tensor, TensorData};
+use burn::tensor::{Bool, Device, Int, Tensor, TensorData};
 use burn_std::s;
+use itertools::Itertools;
 
 use super::configuration_d1_omni::AudioConfig;
 
@@ -225,12 +226,17 @@ impl Audio {
     }
 }
 
+// Generate padding on the device, e.g. valid=3 masks frames 3 and later.
+fn padding_mask(length: usize, valid: usize, device: &Device) -> Tensor<1, Bool> {
+    Tensor::<1, Int>::arange(0..length as i64, device).greater_equal_elem(valid as i64)
+}
+
 fn time_mask(x: Tensor<4>, valid: usize) -> Tensor<4> {
     let t = x.dims()[2];
-    let values: Vec<_> = (0..t)
-        .map(|i| if i < valid { 1.0_f32 } else { 0.0 })
-        .collect();
-    let mask = Tensor::<4>::from_data(TensorData::new(values, [1, 1, t, 1]), &x.device());
+    let mask = padding_mask(t, valid, &x.device())
+        .bool_not()
+        .float()
+        .reshape([1, 1, t, 1]);
     x * mask
 }
 
@@ -301,12 +307,12 @@ impl RelativeAttention {
             .reshape([b, self.heads, t, 2 * t - 1])
             .slice(s![.., .., .., ..t]);
         let scores = (ac + bd) / (dim as f64).sqrt();
-        let mask: Vec<_> = (0..t)
-            .flat_map(|q| (0..t).map(move |k| q >= valid || k >= valid))
-            .collect();
-        let mask =
-            Tensor::<4, Bool>::from_data(TensorData::new(mask, [1, 1, t, t]), &scores.device())
-                .expand([b, self.heads, t, t]);
+        let padding = padding_mask(t, valid, &scores.device());
+        let mask = padding
+            .clone()
+            .reshape([1, 1, t, 1])
+            .bool_or(padding.reshape([1, 1, 1, t]))
+            .expand([b, self.heads, t, t]);
         let weights = softmax(scores.mask_fill(mask.clone(), -10000.0), 3).mask_fill(mask, 0.0);
         self.linear_out
             .forward(weights.matmul(v).swap_dims(1, 2).reshape([b, t, d]))
@@ -318,15 +324,10 @@ impl ConvModule {
         let x = self.pointwise_conv1.forward(x.swap_dims(1, 2));
         let x = glu(x, 1);
         let t = x.dims()[2];
-        let keep = Tensor::<3>::from_data(
-            TensorData::new(
-                (0..t)
-                    .map(|i| if i < valid { 1.0_f32 } else { 0.0 })
-                    .collect::<Vec<_>>(),
-                [1, 1, t],
-            ),
-            &x.device(),
-        );
+        let keep = padding_mask(t, valid, &x.device())
+            .bool_not()
+            .float()
+            .reshape([1, 1, t]);
         let x = self.depthwise_conv.forward(x * keep);
         let bn = &self.batch_norm;
         let x = batch_norm(
@@ -367,8 +368,7 @@ pub(super) fn mel_features(samples: &[f32], device: &Device) -> (Tensor<3>, usiz
         },
     );
     let power: Tensor<3> = spectrum.square().sum_dim(3).sqrt().square().squeeze_dim(3);
-    let bank: Vec<_> = filterbank().into_iter().flatten().collect();
-    let bank = Tensor::<2>::from_data(TensorData::new(bank, [128, 257]), device)
+    let bank = Tensor::<2>::from_data(TensorData::new(filterbank(), [128, 257]), device)
         .transpose()
         .unsqueeze_dim::<3>(0);
     let mel = (power.matmul(bank) + 2.0_f64.powi(-24)).log();
@@ -376,20 +376,14 @@ pub(super) fn mel_features(samples: &[f32], device: &Device) -> (Tensor<3>, usiz
     // var_mean applies the sample-variance correction used by NeMo, e.g. divide by frames - 1.
     let (variance, mean) = valid.var_mean(1);
     let normalized = (mel - mean) / (variance.sqrt() + 1e-5);
-    let mask = Tensor::<3, Bool>::from_data(
-        TensorData::new(
-            (0..=frames).map(|i| i >= frames).collect::<Vec<_>>(),
-            [1, frames + 1, 1],
-        ),
-        device,
-    );
+    let mask = padding_mask(frames + 1, frames, device).reshape([1, frames + 1, 1]);
     (
         normalized.mask_fill(mask.expand([1, frames + 1, 128]), 0.0),
         frames,
     )
 }
 
-fn filterbank() -> Vec<Vec<f32>> {
+fn filterbank() -> Vec<f32> {
     let logstep = 6.4_f64.ln() / 27.0;
     let maximum = 15.0 + 8.0_f64.ln() / logstep;
     let edges: Vec<_> = (0..130)
@@ -403,19 +397,16 @@ fn filterbank() -> Vec<Vec<f32>> {
         })
         .collect();
     edges
-        .windows(3)
-        .map(|edge| {
-            let [left, center, right] =
-                <[f64; 3]>::try_from(edge).expect("windows(3) always has three edges");
-            (0..257)
-                .map(|i| {
-                    let hz = i as f64 * 16000.0 / 512.0;
-                    let weight = ((hz - left) / (center - left))
-                        .min((right - hz) / (right - center))
-                        .max(0.0) as f32;
-                    weight * (2.0 / (right - left)) as f32
-                })
-                .collect()
+        .iter()
+        .tuple_windows()
+        .flat_map(|(&left, &center, &right)| {
+            (0..257).map(move |i| {
+                let hz = i as f64 * 16000.0 / 512.0;
+                let weight = ((hz - left) / (center - left))
+                    .min((right - hz) / (right - center))
+                    .max(0.0) as f32;
+                weight * (2.0 / (right - left)) as f32
+            })
         })
         .collect()
 }
@@ -423,6 +414,42 @@ fn filterbank() -> Vec<Vec<f32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn padding_covers_frame_limits(device: Device) {
+        // Mask only time across both batches/channels, e.g. the first frame keeps its features.
+        let values: Vec<_> = (1..=24).map(|i| i as f32).collect();
+        let input = Tensor::from_data(TensorData::new(values.clone(), [2, 2, 3, 2]), &device);
+        for (valid, expected) in [
+            (0, vec![0.0; 24]),
+            (
+                1,
+                vec![
+                    1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 7.0, 8.0, 0.0, 0.0, 0.0, 0.0, 13.0, 14.0, 0.0,
+                    0.0, 0.0, 0.0, 19.0, 20.0, 0.0, 0.0, 0.0, 0.0,
+                ],
+            ),
+            (3, values.clone()),
+            (5, values),
+        ] {
+            let actual = time_mask(input.clone(), valid)
+                .try_into_vec_as::<f32>()
+                .unwrap();
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[cfg(feature = "cpu")]
+    #[test]
+    fn cpu_padding_covers_frame_limits() {
+        padding_covers_frame_limits(Device::flex());
+    }
+
+    #[cfg(feature = "wgpu")]
+    #[test]
+    #[ignore = "requires a wgpu adapter"]
+    fn wgpu_padding_covers_frame_limits() {
+        padding_covers_frame_limits(Device::wgpu(Default::default()));
+    }
 
     fn frontend_matches_python(device: Device) {
         let reference: serde_json::Value = serde_json::from_str(include_str!(

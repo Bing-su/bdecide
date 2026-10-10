@@ -17,6 +17,7 @@ use burn_std::s;
 use super::Lfm2Config;
 use crate::Result;
 use crate::utils::attention::attention;
+use crate::utils::rotary::apply_rotary;
 
 #[derive(Module, Debug)]
 pub struct Lfm2Model {
@@ -206,18 +207,6 @@ fn rotary(length: usize, dim: usize, theta: f64, device: &Device) -> (Tensor<4>,
     )
 }
 
-fn rotate(x: Tensor<4>, cos: Tensor<4>, sin: Tensor<4>) -> Tensor<4> {
-    let half = x.dims()[3] / 2;
-    x.clone() * cos
-        + Tensor::cat(
-            vec![
-                -x.clone().slice(s![.., .., .., half..]),
-                x.slice(s![.., .., .., ..half]),
-            ],
-            3,
-        ) * sin
-}
-
 impl Attention {
     fn forward(
         &self,
@@ -257,8 +246,8 @@ impl Attention {
         };
         self.out_proj.forward(
             attention(
-                rotate(q, cos.clone(), sin.clone()),
-                repeat(rotate(k, cos, sin)),
+                apply_rotary(q, cos.clone(), sin.clone()),
+                repeat(apply_rotary(k, cos, sin)),
                 repeat(v),
                 mask.map(|mask| mask.expand([b, self.heads, l, l])),
                 burn::tensor::ops::AttentionModuleOptions {

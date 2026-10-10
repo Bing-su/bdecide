@@ -67,13 +67,14 @@ allow_attributes_without_reason = "warn"
 
 [dependencies]
 bon = "3.10"
-burn = { version = "0.22", default-features = false, features = ["pytorch", "safetensors", "signal", "std"] }
+burn = { version = "0.22", default-features = false, features = ["linalg", "pytorch", "safetensors", "signal", "std"] }
 burn-std = { version = "0.22", default-features = false, features = ["std"] }
 camino = { version = "1", features = ["serde1"] }
 dirs = "7"
 hf-hub = { version = "1", features = ["blocking"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 indexmap = { version = "2", features = ["serde"] }
+itertools = "0.15"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

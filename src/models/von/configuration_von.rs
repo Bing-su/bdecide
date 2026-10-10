@@ -1,7 +1,7 @@
 //! Read the checkpoint's temperature map and option-isolation mode.
 use serde::Deserialize;
 
-use crate::models::qwen3_5::readout::softmax;
+use crate::utils::decision::softmax;
 use crate::{Error, Result};
 
 #[derive(Deserialize)]

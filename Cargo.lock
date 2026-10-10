@@ -476,6 +476,7 @@ dependencies = [
  "hf-hub",
  "image",
  "indexmap",
+ "itertools 0.15.0",
  "proptest",
  "regex",
  "rstest",

@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use bon::bon;
+use burn::linalg::{Norm, vector_normalize};
 use burn::module::{Module, Param};
 use burn::nn::{
     Dropout,
@@ -223,7 +224,7 @@ impl ClefDecisionModel {
 }
 
 fn unit(input: Tensor<3>, eps: f64) -> Tensor<3> {
-    input.clone() / input.square().sum_dim(2).sqrt().clamp_min(eps)
+    vector_normalize(input, Norm::L2, 2, eps)
 }
 fn mean_span(values: &Tensor<3>, span: &Range<usize>) -> Tensor<3> {
     values
@@ -458,8 +459,8 @@ impl DecisionModel for ClefModel {
         let record = self.processor.process(request)?;
         let logits = self.forward(&record)?;
         let mut answers = IndexMap::new();
-        for (((id, question), encoded), logits) in
-            request.questions.iter().zip(&record.questions).zip(logits)
+        for ((id, question), encoded, logits) in
+            itertools::izip!(&request.questions, &record.questions, logits)
         {
             let probabilities = probabilities(&logits)?;
             let distribution: IndexMap<_, _> = encoded
@@ -654,6 +655,20 @@ mod tests {
     #[cfg(feature = "cpu")]
     use crate::Truncation;
     use crate::models::clef::EncodedQuestion;
+
+    #[cfg(feature = "cpu")]
+    #[test]
+    fn normalization_preserves_zero_vectors_and_each_epsilon() {
+        // Keep the prior/cosine clamp contract, e.g. a tiny vector scales down only at eps=1e-8.
+        let device = BurnDevice::flex();
+        let input = Tensor::<3>::from_data([[[0.0, 0.0], [3.0, 4.0], [1e-10, 0.0]]], &device);
+        for (eps, tail) in [(1e-12, 1.0_f32), (1e-8, 0.01_f32)] {
+            let actual = unit(input.clone(), eps).try_into_vec_as::<f32>().unwrap();
+            for (actual, expected) in actual.into_iter().zip([0.0, 0.0, 0.6, 0.8, tail, 0.0]) {
+                approx::assert_relative_eq!(actual, expected, epsilon = 1e-7);
+            }
+        }
+    }
 
     fn verify_reference(device: BurnDevice, variant: &str, epsilon: f64) {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -177,8 +177,8 @@ impl DecisionModel for LayaModel {
         let batch = self.processor.process(request)?;
         let raw = self.forward(&batch)?;
         let mut answers = IndexMap::new();
-        for (((id, question), logits), action) in
-            request.questions.iter().zip(raw.logits).zip(raw.actions)
+        for ((id, question), logits, action) in
+            itertools::izip!(&request.questions, raw.logits, raw.actions)
         {
             let distribution = probabilities(
                 &logits,

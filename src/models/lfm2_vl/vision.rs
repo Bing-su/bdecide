@@ -5,6 +5,7 @@ use burn::tensor::activation::gelu;
 use burn::tensor::{Device, Tensor, TensorData};
 use image::RgbImage;
 use image::imageops::{self, FilterType};
+use itertools::Itertools;
 
 use super::Siglip2VisionConfig;
 use crate::utils::activation::HiddenActivation;
@@ -137,11 +138,8 @@ impl Siglip2VisionModel {
         // Match SigLIP2's antialiased position resize without reading weights back to the CPU.
         let weights: Vec<_> = vertical
             .iter()
-            .flat_map(|ys| {
-                horizontal.iter().flat_map(move |xs| {
-                    ys.iter().flat_map(move |&y| xs.iter().map(move |&x| y * x))
-                })
-            })
+            .cartesian_product(&horizontal)
+            .flat_map(|(ys, xs)| ys.iter().cartesian_product(xs).map(|(&y, &x)| y * x))
             .collect();
         let position = Tensor::<2>::from_data(TensorData::new(weights, [length, patches]), device)
             .matmul(position)

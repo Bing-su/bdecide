@@ -1,4 +1,5 @@
 //! Preserve Von's marker boundaries while neutralizing caller special-token literals.
+use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 use tokenizers::Tokenizer;
@@ -27,13 +28,9 @@ pub(super) fn split_digits(text: &str) -> Result<String> {
     let digits = regex::Regex::new(r"\d+").map_err(|error| Error::Tokenizer(error.to_string()))?;
     Ok(digits
         .replace_all(text, |captures: &regex::Captures<'_>| {
-            captures.get(0).map_or_else(String::new, |run| {
-                run.as_str()
-                    .chars()
-                    .map(|c| c.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
+            captures
+                .get(0)
+                .map_or_else(String::new, |run| run.as_str().chars().join(" "))
         })
         .into_owned())
 }

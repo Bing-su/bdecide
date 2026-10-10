@@ -4,12 +4,12 @@ use std::ops::Range;
 
 use burn::tensor::Device as BurnDevice;
 use camino::Utf8Path;
-use indexmap::IndexMap;
 use tokenizers::Tokenizer;
 
 use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
+use crate::utils::decision::softmax;
 use crate::utils::{load_tokenizer, token_ids, tokenize};
-use crate::{Action, Answer, Error, Question, Request, Result, Truncation, Usage};
+use crate::{Error, Question, Request, Result, Truncation, Usage};
 
 pub(crate) struct Readout {
     pub(crate) model: Qwen3_5ForCausalLM,
@@ -160,89 +160,4 @@ impl Readout {
             .map(|group| tokens.by_ref().take(group.len()).sum())
             .collect())
     }
-}
-
-pub(crate) fn softmax(logits: &[f64]) -> Result<Vec<f64>> {
-    if logits.is_empty() || logits.iter().any(|value| !value.is_finite()) {
-        return Err(Error::Inference("non-finite or empty answer logits".into()));
-    }
-    let max = logits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let values: Vec<_> = logits.iter().map(|value| (value - max).exp()).collect();
-    let sum: f64 = values.iter().sum();
-    Ok(values.into_iter().map(|value| value / sum).collect())
-}
-
-pub(crate) fn answer(
-    question: &Question,
-    probabilities: Vec<f64>,
-    confidence: f64,
-    legend: Vec<String>,
-    true_index: usize,
-) -> Result<Answer> {
-    let max = probabilities.iter().copied().fold(0.0, f64::max);
-    let action = Action::new(1.0);
-    Ok(match question {
-        Question::Noul { .. } => Answer::Noul {
-            noul: *probabilities
-                .get(true_index)
-                .ok_or_else(|| Error::Inference("missing boolean probability".into()))?,
-            confidence,
-            answer_confidence: max,
-            action,
-        },
-        Question::Choice { criteria, .. } => {
-            let best = argmax(&probabilities);
-            Answer::Choice {
-                choice: criteria
-                    .get_index(best)
-                    .ok_or_else(|| Error::Inference("missing choice probability".into()))?
-                    .0
-                    .clone(),
-                probabilities: criteria.keys().cloned().zip(probabilities).collect(),
-                confidence,
-                answer_confidence: max,
-                action,
-            }
-        }
-        Question::Score { .. } => Answer::Score {
-            score: probabilities
-                .iter()
-                .enumerate()
-                .map(|(i, probability)| i as f64 * probability)
-                .sum(),
-            probabilities: probabilities
-                .into_iter()
-                .enumerate()
-                .map(|(i, probability)| (i.to_string(), probability))
-                .collect(),
-            legend: legend
-                .into_iter()
-                .enumerate()
-                .map(|(i, text)| (i.to_string(), text))
-                .collect::<IndexMap<_, _>>(),
-            confidence,
-            answer_confidence: max,
-            action,
-        },
-    })
-}
-
-pub(crate) fn argmax(probabilities: &[f64]) -> usize {
-    // Keep insertion order on ties, e.g. equal A/B probabilities select A.
-    probabilities
-        .iter()
-        .enumerate()
-        .fold(
-            (0, -1.0),
-            |best, (i, &p)| if p > best.1 { (i, p) } else { best },
-        )
-        .0
-}
-
-pub(crate) fn choice_confidence(probabilities: &[f64]) -> f64 {
-    if probabilities.len() == 1 {
-        return 1.0;
-    }
-    let prior = 1.0 / probabilities.len() as f64;
-    (probabilities.iter().copied().fold(0.0, f64::max) - prior) / (1.0 - prior)
 }

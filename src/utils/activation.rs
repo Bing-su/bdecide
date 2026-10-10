@@ -98,7 +98,7 @@ impl HiddenActivation {
             Self::Mish => input.clone() * softplus(input).tanh(),
             Self::Relu => activation::relu(input),
             Self::Relu2 => activation::relu(input).square(),
-            Self::Relu6 => input.clamp(0.0, 6.0),
+            Self::Relu6 => activation::relu6(input),
             Self::Sigmoid => activation::sigmoid(input),
             Self::Silu => activation::silu(input),
             Self::SqrtSoftplus => softplus(input).sqrt(),

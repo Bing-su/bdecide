@@ -6,7 +6,8 @@ use indexmap::IndexMap;
 use super::configuration_decider::DeciderConfig;
 use super::processing_decider::{neutralize, option, state, strip_level};
 use crate::hub::{self, ModelSource};
-use crate::models::qwen3_5::readout::{Readout, answer, argmax, choice_confidence, softmax};
+use crate::models::qwen3_5::readout::Readout;
+use crate::utils::decision::{answer, argmax, choice_confidence, softmax};
 use crate::utils::{read_checkpoint_json, render, sanitize};
 use crate::{
     DecisionModel,
