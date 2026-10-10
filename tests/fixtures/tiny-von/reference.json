@@ -19,11 +19,7 @@
           "score": {
             "type": "score",
             "instructions": "How urgent?",
-            "criteria": [
-              "0: low",
-              "medium",
-              "high"
-            ]
+            "criteria": ["0: low", "medium", "high"]
           },
           "plain": {
             "type": "noul",
@@ -233,10 +229,7 @@
             "criteria": [
               {
                 "what": "low",
-                "examples": [
-                  "alpha",
-                  "beta"
-                ]
+                "examples": ["alpha", "beta"]
               },
               {
                 "what": "high"

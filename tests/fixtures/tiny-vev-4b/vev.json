@@ -9,7 +9,7 @@
     "sources": null,
     "source_weights": null,
     "max_steps": 2500,
-    "lr": 5e-05,
+    "lr": 5e-5,
     "head_lr": 0.0,
     "lora_r": 16,
     "lora_alpha": 0,
