@@ -116,7 +116,6 @@ fn truthy(value: Option<String>) -> bool {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::path::PathBuf;
 
     use rstest::rstest;
     use tempfile::tempdir;
