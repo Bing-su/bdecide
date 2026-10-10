@@ -3,6 +3,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::media::{AudioInput, ImageInput};
 use crate::{Error, Result};
 
 /// Preserve question and criterion insertion order because it changes token IDs.
@@ -11,6 +12,11 @@ use crate::{Error, Result};
 pub struct Request {
     pub state: Value,
     pub questions: IndexMap<String, Question>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[builder(default)]
+    pub images: Vec<ImageInput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<AudioInput>,
     #[serde(default)]
     #[builder(default)]
     pub options: PredictOptions,
@@ -94,10 +100,22 @@ impl Request {
         if !matches!(
             self.state,
             Value::String(_) | Value::Object(_) | Value::Array(_)
-        ) {
+        ) && !(self.state.is_null() && (!self.images.is_empty() || self.audio.is_some()))
+        {
             return Err(Error::InvalidRequest(
                 "state must be text, a JSON object, or a conversation array".into(),
             ));
+        }
+        if !self.images.is_empty() && self.audio.is_some() {
+            return Err(Error::InvalidRequest(
+                "a request carries images or audio, not both".into(),
+            ));
+        }
+        for image in &self.images {
+            image.validate()?;
+        }
+        if let Some(audio) = &self.audio {
+            audio.validate()?;
         }
         for (id, q) in &self.questions {
             if id.trim().is_empty() {
@@ -121,6 +139,14 @@ impl Request {
             return Err(Error::InvalidRequest(
                 "head_max_len must be at least 16".into(),
             ));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn validate_text_only(&self) -> Result<()> {
+        self.validate()?;
+        if !self.images.is_empty() || self.audio.is_some() {
+            return Err(Error::InvalidRequest("this model accepts text only".into()));
         }
         Ok(())
     }
@@ -183,6 +209,8 @@ mod tests {
         let request = Request {
             state: Value::String("alpha".into()),
             questions: IndexMap::new(),
+            images: Vec::new(),
+            audio: None,
             options: PredictOptions {
                 max_len,
                 head_max_len,

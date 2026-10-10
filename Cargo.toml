@@ -67,15 +67,17 @@ allow_attributes_without_reason = "warn"
 
 [dependencies]
 bon = "3.10"
-burn = { version = "0.22", default-features = false, features = ["pytorch", "safetensors", "std"] }
+burn = { version = "0.22", default-features = false, features = ["pytorch", "safetensors", "signal", "std"] }
 burn-std = { version = "0.22", default-features = false, features = ["std"] }
-camino = "1"
+camino = { version = "1", features = ["serde1"] }
 dirs = "7"
 hf-hub = { version = "1", features = ["blocking"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 indexmap = { version = "2", features = ["serde"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+symphonia = { version = "0.6", features = ["all"] }
 thiserror = "2"
 tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 usage = { package = "usage-rs", version = "6" }

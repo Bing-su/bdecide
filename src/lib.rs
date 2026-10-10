@@ -7,15 +7,20 @@
 
 mod error;
 pub mod hub;
+mod media;
 pub mod models;
 mod request;
 mod response;
 mod utils;
 
 pub use error::{Error, Result};
+pub use media::{AudioInput, ImageInput};
 pub use models::clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor};
+pub use models::d1::{D1Model, D1OmniConfig, D1OmniModel};
 pub use models::decider::DeciderModel;
 pub use models::laya::{LayaConfig, LayaDecisionModel, LayaModel};
+pub use models::lfm2::{Lfm2Config, Lfm2Model};
+pub use models::lfm2_vl::{Lfm2VlConfig, Lfm2VlForConditionalGeneration, Lfm2VlModel};
 pub use models::modernbert::ModernBertConfig;
 pub use models::qwen3_5::{
     CausalLMOutput,

@@ -87,7 +87,7 @@ impl ClefProcessor {
     }
 
     pub fn process(&self, request: &Request) -> Result<EncodedRecord> {
-        request.validate()?;
+        request.validate_text_only()?;
         if request.questions.is_empty() {
             return Err(Error::InvalidRequest(
                 "Clef needs at least one question".into(),

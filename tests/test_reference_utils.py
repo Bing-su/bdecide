@@ -38,6 +38,7 @@ with ExitStack() as stack:
         "generate_clef_reference",
         "generate_decision_reference",
         "generate_activation_reference",
+        "generate_d1_reference",
     ):
         # Reload too so a cached import cannot hide generation, e.g. discovery imports.
         importlib.reload(importlib.import_module(name))

@@ -305,8 +305,13 @@ fn jsonl_continues_after_errors_and_keeps_stdout_machine_readable(#[case] extra:
     let request =
         json!({"state":"alpha","questions":{"q":{"type":"noul","instructions":"cancel?"}}});
     let bad = json!({"state":null,"questions":{}});
+    // An overflowing RGB size must produce an error row and leave later requests readable.
+    let bad_image = json!({
+        "state": null, "questions": {},
+        "images": [{"width": u32::MAX, "height": u32::MAX, "pixels": []}],
+    });
     let mut input = child.stdin.take().unwrap();
-    writeln!(input, "not-json\n{request}\n{bad}\n{request}").unwrap();
+    writeln!(input, "not-json\n{request}\n{bad}\n{bad_image}\n{request}").unwrap();
     drop(input);
     let output = child.wait_with_output().unwrap();
     assert_eq!(output.status.code(), Some(1));
@@ -320,10 +325,16 @@ fn jsonl_continues_after_errors_and_keeps_stdout_machine_readable(#[case] extra:
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
-    assert_eq!(rows.len(), 4);
+    assert_eq!(rows.len(), 5);
     assert_eq!(rows[0]["error"]["line"], 1);
     assert_eq!(rows[2]["error"]["kind"], "invalid_request");
-    assert_eq!(rows[1], rows[3]);
+    assert_eq!(rows[3]["error"]["kind"], "invalid_request");
+    assert_eq!(rows[3]["error"]["line"], 4);
+    assert_eq!(
+        rows[3]["error"]["message"],
+        "invalid request: RGB pixels must contain width * height * 3 bytes"
+    );
+    assert_eq!(rows[1], rows[4]);
     assert_eq!(rows[1]["metadata"]["device"], "cpu");
 }
 

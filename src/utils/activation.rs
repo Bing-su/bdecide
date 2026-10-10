@@ -127,6 +127,7 @@ pub(crate) mod tests {
     use approx::{abs_diff_eq, assert_relative_eq};
     use burn::tensor::{Device as BurnDevice, TensorData};
     use camino::Utf8Path;
+    use rstest::rstest;
     use serde::Deserialize;
 
     use super::*;
@@ -173,7 +174,7 @@ pub(crate) mod tests {
         }
     }
 
-    fn matches_python(device: BurnDevice) {
+    fn matches_python(device: BurnDevice, name: &str) {
         let reference = reference();
         assert_eq!(reference.cases.len(), 22);
 
@@ -181,40 +182,95 @@ pub(crate) mod tests {
             TensorData::new(reference.inputs.clone(), [reference.inputs.len()]),
             &device,
         );
-        for case in reference.cases {
-            let act = case.name.parse::<HiddenActivation>().unwrap();
-            let output = act.forward(input.clone()).into_data();
-            assert_close(output, &case.values, &case.name, 3e-6);
-            // A zero tail can pass absolute tolerance; require relative accuracy at x=-20.
-            if case.name == "sqrtsoftplus" {
-                let output = act
-                    .forward(Tensor::<1>::from_data([-20.0], &device))
-                    .into_data();
-                let value = output.as_slice::<f32>().unwrap()[0];
-                assert_relative_eq!(value, 0.00004539993, epsilon = 0.0, max_relative = 1e-4);
-            }
+        let case = reference
+            .cases
+            .into_iter()
+            .find(|case| case.name == name)
+            .expect("activation reference");
+        let act = case.name.parse::<HiddenActivation>().unwrap();
+        let output = act.forward(input.clone()).into_data();
+        assert_close(output, &case.values, &case.name, 3e-6);
+        // A zero tail can pass absolute tolerance; require relative accuracy at x=-20.
+        if case.name == "sqrtsoftplus" {
+            let output = act
+                .forward(Tensor::<1>::from_data([-20.0], &device))
+                .into_data();
+            let value = output.as_slice::<f32>().unwrap()[0];
+            assert_relative_eq!(value, 0.00004539993, epsilon = 0.0, max_relative = 1e-4);
         }
     }
 
-    #[test]
-    fn rejects_learned_and_unknown_activations() {
-        for name in ["prelu", "xielu", "unknown", "", "GELU"] {
-            let error = name.parse::<HiddenActivation>().unwrap_err();
-            assert!(matches!(error, Error::UnsupportedModel(_)));
-            assert!(error.to_string().contains(name));
-        }
+    #[rstest]
+    fn rejects_learned_and_unknown_activations(
+        #[values("prelu", "xielu", "unknown", "", "GELU")] name: &str,
+    ) {
+        let error = name.parse::<HiddenActivation>().unwrap_err();
+        assert!(matches!(error, Error::UnsupportedModel(_)));
+        assert!(error.to_string().contains(name));
     }
 
-    #[test]
     #[cfg(feature = "cpu")]
-    fn cpu_matches_python_activations() {
-        matches_python(BurnDevice::flex());
+    #[rstest]
+    fn cpu_matches_python_activations(
+        #[values(
+            "gelu",
+            "gelu_python",
+            "gelu_10",
+            "gelu_new",
+            "gelu_accurate",
+            "gelu_pytorch_tanh",
+            "gelu_python_tanh",
+            "gelu_fast",
+            "quick_gelu",
+            "hardswish",
+            "laplace",
+            "leaky_relu",
+            "linear",
+            "mish",
+            "relu",
+            "relu2",
+            "relu6",
+            "sigmoid",
+            "silu",
+            "swish",
+            "sqrtsoftplus",
+            "tanh"
+        )]
+        name: &str,
+    ) {
+        matches_python(BurnDevice::flex(), name);
     }
 
-    #[test]
     #[cfg(feature = "wgpu")]
+    #[rstest]
     #[ignore = "requires a wgpu adapter"]
-    fn wgpu_matches_python_activations() {
-        matches_python(BurnDevice::wgpu(Default::default()));
+    fn wgpu_matches_python_activations(
+        #[values(
+            "gelu",
+            "gelu_python",
+            "gelu_10",
+            "gelu_new",
+            "gelu_accurate",
+            "gelu_pytorch_tanh",
+            "gelu_python_tanh",
+            "gelu_fast",
+            "quick_gelu",
+            "hardswish",
+            "laplace",
+            "leaky_relu",
+            "linear",
+            "mish",
+            "relu",
+            "relu2",
+            "relu6",
+            "sigmoid",
+            "silu",
+            "swish",
+            "sqrtsoftplus",
+            "tanh"
+        )]
+        name: &str,
+    ) {
+        matches_python(BurnDevice::wgpu(Default::default()), name);
     }
 }

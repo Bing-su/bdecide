@@ -44,7 +44,7 @@ impl Readout {
     }
 
     pub(crate) fn validate(&self, request: &Request) -> Result<usize> {
-        request.validate()?;
+        request.validate_text_only()?;
         if request.questions.is_empty() || request.options.head_max_len.is_some() {
             return Err(Error::InvalidRequest(
                 "at least one question is required; head_max_len is a Laya-only option".into(),

@@ -1,0 +1,277 @@
+{
+  "reference": {
+    "revision": "051bcc464b01b9f92942b364d9586b0ef5912432",
+    "torch": "2.14.1+cpu",
+    "transformers": "5.18.0"
+  },
+  "cases": [
+    {
+      "request": {
+        "state": "alpha beta last",
+        "questions": {
+          "pick": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "alpha",
+              "a": "beta",
+              "other": null
+            }
+          },
+          "rating": {
+            "type": "score",
+            "instructions": "urgent?",
+            "criteria": ["alpha", "beta", "gamma"]
+          },
+          "boolean": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        }
+      },
+      "answers": {
+        "pick": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9995027005490679,
+          "probabilities": {
+            "z": 0.00048120417907364333,
+            "a": 1.6095271858474332e-5,
+            "other": 0.9995027005490679
+          }
+        },
+        "rating": {
+          "type": "score",
+          "score": 1.9484834789582461,
+          "confidence": 0.9732364776754345,
+          "probabilities": {
+            "0": 0.024752998717188404,
+            "1": 0.002010523607377153,
+            "2": 0.9732364776754345
+          },
+          "legend": {
+            "0": "alpha",
+            "1": "beta",
+            "2": "gamma"
+          }
+        },
+        "boolean": {
+          "type": "noul",
+          "noul": 0.08562412205924678
+        }
+      }
+    },
+    {
+      "request": {
+        "state": {
+          "z": "한글",
+          "a": [true, null, 2]
+        },
+        "questions": {
+          "pick": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "alpha",
+              "a": "beta",
+              "other": null
+            }
+          },
+          "rating": {
+            "type": "score",
+            "instructions": "urgent?",
+            "criteria": ["alpha", "beta", "gamma"]
+          },
+          "boolean": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        }
+      },
+      "answers": {
+        "pick": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9990283637654639,
+          "probabilities": {
+            "z": 0.0009144358980397883,
+            "a": 5.720033649638441e-5,
+            "other": 0.9990283637654639
+          }
+        },
+        "rating": {
+          "type": "score",
+          "score": 1.9487846290021973,
+          "confidence": 0.9732997925701774,
+          "probabilities": {
+            "0": 0.02451516356798013,
+            "1": 0.002185043861842379,
+            "2": 0.9732997925701774
+          },
+          "legend": {
+            "0": "alpha",
+            "1": "beta",
+            "2": "gamma"
+          }
+        },
+        "boolean": {
+          "type": "noul",
+          "noul": 0.12662815043369982
+        }
+      }
+    },
+    {
+      "request": {
+        "state": null,
+        "questions": {
+          "pick": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "alpha",
+              "a": "beta",
+              "other": null
+            }
+          },
+          "rating": {
+            "type": "score",
+            "instructions": "urgent?",
+            "criteria": ["alpha", "beta", "gamma"]
+          },
+          "boolean": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        },
+        "images": ["square.png"]
+      },
+      "answers": {
+        "pick": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9999153606421656,
+          "probabilities": {
+            "z": 8.158004352916787e-5,
+            "a": 3.0593143052506114e-6,
+            "other": 0.9999153606421656
+          }
+        },
+        "rating": {
+          "type": "score",
+          "score": 1.9919500570114848,
+          "confidence": 0.9959132452914952,
+          "probabilities": {
+            "0": 0.003963188280010402,
+            "1": 0.0001235664284944867,
+            "2": 0.9959132452914952
+          },
+          "legend": {
+            "0": "alpha",
+            "1": "beta",
+            "2": "gamma"
+          }
+        },
+        "boolean": {
+          "type": "noul",
+          "noul": 0.11580868288475135
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "pick": {
+            "type": "choice",
+            "instructions": "Select",
+            "criteria": {
+              "z": "alpha",
+              "a": "beta",
+              "other": null
+            }
+          },
+          "rating": {
+            "type": "score",
+            "instructions": "urgent?",
+            "criteria": ["alpha", "beta", "gamma"]
+          },
+          "boolean": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        },
+        "images": ["rectangle.png", "square.png"]
+      },
+      "answers": {
+        "pick": {
+          "type": "choice",
+          "choice": "other",
+          "confidence": 0.9999142826511306,
+          "probabilities": {
+            "z": 8.239719485696457e-5,
+            "a": 3.3201540125342076e-6,
+            "other": 0.9999142826511306
+          }
+        },
+        "rating": {
+          "type": "score",
+          "score": 1.9870914315329913,
+          "confidence": 0.993462268823932,
+          "probabilities": {
+            "0": 0.006370837290940653,
+            "1": 0.00016689388512730017,
+            "2": 0.993462268823932
+          },
+          "legend": {
+            "0": "alpha",
+            "1": "beta",
+            "2": "gamma"
+          }
+        },
+        "boolean": {
+          "type": "noul",
+          "noul": 0.11161096900035856
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "beta",
+        "questions": {
+          "boolean": {
+            "type": "noul",
+            "instructions": "cancel?"
+          }
+        },
+        "images": ["tiled.png"]
+      },
+      "answers": {
+        "boolean": {
+          "type": "noul",
+          "noul": 0.07857662209569415
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "alpha",
+        "questions": {
+          "boolean": {
+            "type": "noul",
+            "instructions": "cancel?",
+            "criteria": {
+              "false": "alpha",
+              "true": "beta"
+            }
+          }
+        }
+      },
+      "answers": {
+        "boolean": {
+          "type": "noul",
+          "noul": 0.05154904990501762
+        }
+      }
+    }
+  ]
+}

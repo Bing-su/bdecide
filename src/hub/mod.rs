@@ -8,6 +8,8 @@ pub(crate) use artifacts::{
     Family,
     resolve_auto,
     resolve_clef,
+    resolve_d1,
+    resolve_d1_omni,
     resolve_decider,
     resolve_vev,
     resolve_von,

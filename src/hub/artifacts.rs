@@ -3,8 +3,10 @@ use hf_hub::HFError;
 
 use super::{Artifacts, ModelSource, resolve};
 use crate::models::clef::ClefConfig;
+use crate::models::d1::D1OmniConfig;
 use crate::models::decider::DeciderConfig;
 use crate::models::laya::REQUIRED_ARTIFACTS;
+use crate::models::lfm2_vl::Lfm2VlConfig;
 use crate::models::modernbert::ModernBertConfig;
 use crate::models::qwen3_5::weights::backbone_files;
 use crate::models::qwen3_5::{Qwen3_5Config, Qwen3_5TextConfig};
@@ -22,6 +24,8 @@ pub(crate) enum Family {
     Wald,
     Decider,
     Von,
+    D1,
+    D1Omni,
 }
 
 /// Detect artifact layouts rather than repo IDs, e.g. a renamed Clef fine-tune.
@@ -35,6 +39,15 @@ pub(crate) fn resolve_auto(source: &ModelSource) -> Result<(Artifacts, Family)> 
             let artifacts = resolve(source, &["config.json"])?;
             let config: serde_json::Value =
                 read_checkpoint_json(&artifacts.root.join("config.json"))?;
+            let d1_family = match config.get("model_type").and_then(serde_json::Value::as_str) {
+                Some("lfm2_vl") => Some(Family::D1),
+                Some("d1_omni") => Some(Family::D1Omni),
+                _ => None,
+            };
+            if let Some(family) = d1_family {
+                resolve_family(source, &artifacts, family)?;
+                return Ok((artifacts, family));
+            }
             if config.get("model_type").and_then(serde_json::Value::as_str) == Some("modernbert") {
                 resolve_more(source, &artifacts, &["marker_calibration.json"])?;
                 resolve_family(source, &artifacts, Family::Von)?;
@@ -103,7 +116,45 @@ pub(crate) fn resolve_von(source: &ModelSource) -> Result<Artifacts> {
     Ok(artifacts)
 }
 
+pub(crate) fn resolve_d1(source: &ModelSource) -> Result<Artifacts> {
+    let artifacts = resolve(source, &["config.json"])?;
+    resolve_family(source, &artifacts, Family::D1)?;
+    Ok(artifacts)
+}
+
+pub(crate) fn resolve_d1_omni(source: &ModelSource) -> Result<Artifacts> {
+    let artifacts = resolve(source, &["config.json"])?;
+    resolve_family(source, &artifacts, Family::D1Omni)?;
+    Ok(artifacts)
+}
+
 fn resolve_family(source: &ModelSource, artifacts: &Artifacts, family: Family) -> Result<()> {
+    if matches!(family, Family::D1 | Family::D1Omni) {
+        match family {
+            Family::D1 => {
+                Lfm2VlConfig::from_pretrained(&artifacts.root)?;
+            }
+            _ => {
+                D1OmniConfig::from_pretrained(&artifacts.root)?;
+            }
+        }
+        resolve_more(
+            source,
+            artifacts,
+            &["tokenizer.json", "tokenizer_config.json"],
+        )?;
+        match resolve_more(source, artifacts, &["model.safetensors.index.json"]) {
+            Ok(()) => {
+                let files = crate::models::weights::checkpoint_files(&artifacts.root, |_| true)?;
+                let names: Vec<_> = files.iter().map(String::as_str).collect();
+                return resolve_more(source, artifacts, &names);
+            }
+            Err(error) if artifact_absent(&error) => {
+                return resolve_more(source, artifacts, &["model.safetensors"]);
+            }
+            Err(error) => return Err(error),
+        }
+    }
     if matches!(family, Family::Von) {
         let encoder: ModernBertConfig = read_checkpoint_json(&artifacts.root.join("config.json"))?;
         encoder.validate()?;
@@ -151,6 +202,11 @@ fn resolve_family(source: &ModelSource, artifacts: &Artifacts, family: Family) -
         Family::Laya => {
             return Err(Error::UnsupportedModel(
                 "Laya requires its fixed artifact layout".into(),
+            ));
+        }
+        Family::D1 | Family::D1Omni => {
+            return Err(Error::UnsupportedModel(
+                "d1 requires its LFM2 artifact layout".into(),
             ));
         }
     }

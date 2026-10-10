@@ -88,7 +88,7 @@ impl LayaProcessor {
     }
 
     pub fn process(&self, request: &Request) -> Result<Batch> {
-        request.validate()?;
+        request.validate_text_only()?;
         let max_len = request.options.max_len.unwrap_or(self.max_len);
         let head_max_len = request.options.head_max_len.unwrap_or(self.head_max_len);
         if max_len > self.positions || head_max_len > self.positions {

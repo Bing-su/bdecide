@@ -265,7 +265,7 @@ impl DecisionModel for VonModel {
     }
 
     fn system_one(&self, request: &Request) -> Result<Response> {
-        request.validate()?;
+        request.validate_text_only()?;
         if request.questions.is_empty()
             || request.options.head_max_len.is_some()
             || request
