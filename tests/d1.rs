@@ -133,7 +133,7 @@ fn parity(device: Device, kind: &str, case_index: usize) {
 #[case::omni_state_truncation("omni", 8)]
 #[case::omni_question_truncation("omni", 9)]
 fn cpu_matches_liquidai_text_image_audio(#[case] kind: &str, #[case] case_index: usize) {
-    parity(Device::Cpu, kind, case_index);
+    parity(Device::flex(), kind, case_index);
 }
 
 #[cfg(feature = "wgpu")]
@@ -156,7 +156,7 @@ fn cpu_matches_liquidai_text_image_audio(#[case] kind: &str, #[case] case_index:
 #[case::omni_question_truncation("omni", 9)]
 #[ignore = "requires a wgpu adapter"]
 fn wgpu_matches_liquidai_text_image_audio(#[case] kind: &str, #[case] case_index: usize) {
-    parity(Device::Wgpu, kind, case_index);
+    parity(Device::wgpu(Default::default()), kind, case_index);
 }
 
 #[test]

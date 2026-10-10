@@ -28,7 +28,7 @@ fn request() -> Request {
 fn auto_model_dispatches_from_artifacts_and_reuses_weights(#[case] variant: &str) {
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(fixture(variant)),
-        device: Device::Cpu,
+        device: Some(Device::flex()),
     })
     .unwrap();
     assert_eq!(model.metadata().architecture, "clef");
@@ -87,7 +87,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
     options.token = Token::Anonymous;
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Hub(options.clone()),
-        device: Device::Cpu,
+        device: Some(Device::flex()),
     })
     .unwrap();
     let online = serde_json::to_value(model.system_one(&request()).unwrap()).unwrap();
@@ -96,7 +96,7 @@ async fn sharded_hub_load_is_pinned_and_works_offline() {
     options.local_files_only = true;
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Hub(options),
-        device: Device::Cpu,
+        device: Some(Device::flex()),
     })
     .unwrap();
     assert_eq!(
@@ -133,7 +133,7 @@ fn invalid_head_and_unsafe_index_fail_before_inference() {
     let load = || {
         AutoModel::from_pretrained(LoadOptions {
             source: ModelSource::Local(root.into()),
-            device: Device::Cpu,
+            device: Some(Device::flex()),
         })
     };
     fs::write(

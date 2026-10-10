@@ -1,0 +1,18 @@
+[package]
+name = "bdecide-downstream-tests"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[[test]]
+name = "device"
+path = "tests/device.rs"
+
+# Run this package separately so consumer features do not enable bdecide's cpu/wgpu features.
+[dev-dependencies]
+bdecide = { path = "../..", default-features = false }
+burn = { version = "0.22", default-features = false, features = ["flex", "ndarray"] }
+serde_json = "1"
+
+[lints]
+workspace = true

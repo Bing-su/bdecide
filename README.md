@@ -4,9 +4,57 @@ Uses Burn 0.22 and requires Rust 1.95 or newer. See the upstream
 [release notes](https://github.com/tracel-ai/burn/releases/tag/v0.22.0) and
 [migration guide](https://burn.dev/books/burn/migrating-to-0.22.html).
 
-Models and tensors no longer take a backend type parameter. Pass a Burn device
-to direct model loaders; `AutoModel` and the CLI retain their `cpu`, `wgpu`, and
-`auto` selections.
+Models and tensors no longer take a backend type parameter. `bdecide::Device`
+re-exports `burn::tensor::Device` and works with both direct loaders and `AutoModel`.
+The CLI retains its `cpu`, `wgpu`, and `auto` selections.
+Model metadata reports the Burn device's debug representation, e.g. `format!("{device:?}")`.
+
+| `LoadOptions.device`   | Behavior                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------- |
+| `Some(device)`         | Use the supplied Burn device without replacing it or falling back                   |
+| `None`                 | Use Burn's default device; retry on CPU after backend failure when `cpu` is enabled |
+| Omitted in the builder | Same as `None`: automatic selection                                                 |
+
+```rust,ignore
+use bdecide::{AutoModel, Device, LoadOptions};
+
+// Share an explicit CPU device with other Burn models, e.g. in a mixed CPU/WGPU build.
+let model = AutoModel::from_pretrained(
+    LoadOptions::builder()
+        .source(bdecide::hub::ModelSource::Local("checkpoint".into()))
+        .device(Device::flex())
+        .build(),
+)?;
+```
+
+Library users can enable additional backends on their own Burn 0.22 dependency.
+Cargo unifies those features with bdecide's Burn dependency; no matching bdecide
+feature is required for an explicitly supplied device. For example:
+
+```toml
+[dependencies]
+bdecide = { version = "0.1", default-features = false }
+burn = { version = "0.22", default-features = false, features = ["cuda"] }
+```
+
+```rust,ignore
+use bdecide::{AutoModel, Device, LoadOptions};
+
+// Select the application's CUDA adapter, e.g. device 1 rather than Burn's default.
+let model = AutoModel::from_pretrained(
+    LoadOptions::builder()
+        .source(bdecide::hub::ModelSource::Local("checkpoint".into()))
+        .device(Device::cuda(1))
+        .build(),
+)?;
+```
+
+With `device: None`, Burn selects among its compiled backends and honors
+`BURN_DEVICE`. This is a feature-based default, not a hardware availability probe.
+Enable `cpu` on bdecide to retain CPU fallback after a default device failure.
+The consumer regression package enables Burn's Flex and NdArray backends while
+bdecide's `cpu` and `wgpu` features stay disabled:
+`cargo test --locked --manifest-path tests/downstream/Cargo.toml`.
 
 | Execution | Cargo features  | Direct loader device                             |
 | --------- | --------------- | ------------------------------------------------ |
@@ -18,8 +66,7 @@ WGPU temporarily disables autotune and fusion while GPU crashes and fusion
 storage-buffer binding limits are investigated.
 
 ```rust,ignore
-use bdecide::Qwen3_5ForCausalLM;
-use burn::tensor::Device;
+use bdecide::{Device, Qwen3_5ForCausalLM};
 use camino::Utf8Path;
 
 // Select CPU explicitly even when the binary also enables WGPU.

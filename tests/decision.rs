@@ -165,11 +165,11 @@ fn compare(actual: &Value, expected: &Value) {
     }
 }
 
-fn verify(variant: &str, device: Device, backend_device: &BurnDevice) {
+fn verify(variant: &str, device: &Device, case_limit: usize) {
     let root = fixture(variant);
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(root.clone()),
-        device,
+        device: Some(device.clone()),
     })
     .expect("reference fixtures and predictions must be valid");
     let expected_family = if variant == "tiny-wald" {
@@ -180,16 +180,11 @@ fn verify(variant: &str, device: Device, backend_device: &BurnDevice) {
     assert_eq!(model.metadata().architecture, expected_family);
     let reference: Value = serde_json::from_slice(&fs::read(root.join("reference.json")).unwrap())
         .expect("reference fixtures and predictions must be valid");
-    let backbone = Qwen3_5ForCausalLM::from_pretrained(&root, backend_device)
+    let backbone = Qwen3_5ForCausalLM::from_pretrained(&root, device)
         .expect("reference fixtures and predictions must be valid");
-    verify_native_forward(&backbone, &root, &reference, backend_device);
+    verify_native_forward(&backbone, &root, &reference, device);
     // All seven boundary cases run on CPU. Keep software-GPU parity focused on
     // the mixed choice/score/noul request; large option counts exercise the same readout.
-    let case_limit = if matches!(device, Device::Cpu) {
-        usize::MAX
-    } else {
-        1
-    };
     for case in reference["cases"]
         .as_array()
         .expect("reference fixtures and predictions must be valid")
@@ -231,7 +226,7 @@ fn verify(variant: &str, device: Device, backend_device: &BurnDevice) {
                 .expect("reference fixtures and predictions must be valid");
             let expected: Vec<f32> = serde_json::from_value(row["logits"].clone())
                 .expect("reference fixtures and predictions must be valid");
-            let logits = selected_logits(&backbone, &input_ids, &answer_ids, backend_device);
+            let logits = selected_logits(&backbone, &input_ids, &answer_ids, device);
             for (actual, expected) in logits.into_iter().zip(expected) {
                 assert!(
                     abs_diff_eq!(actual, expected, epsilon = 5e-4),
@@ -252,7 +247,7 @@ fn verify(variant: &str, device: Device, backend_device: &BurnDevice) {
 #[case("tiny-vev-9b")]
 #[case("tiny-wald")]
 fn cpu_matches_upstream_text_decisions(#[case] variant: &str) {
-    verify(variant, Device::Cpu, &BurnDevice::flex());
+    verify(variant, &Device::flex(), usize::MAX);
 }
 
 #[cfg(feature = "wgpu")]
@@ -262,7 +257,7 @@ fn cpu_matches_upstream_text_decisions(#[case] variant: &str) {
 #[case("tiny-wald")]
 #[ignore = "requires a wgpu adapter"]
 fn wgpu_matches_upstream_text_decisions(#[case] variant: &str) {
-    verify(variant, Device::Wgpu, &BurnDevice::wgpu(Default::default()));
+    verify(variant, &Device::wgpu(Default::default()), 1);
 }
 
 #[cfg(feature = "cpu")]
@@ -272,7 +267,7 @@ fn wgpu_matches_upstream_text_decisions(#[case] variant: &str) {
 fn validates_budgets_and_reports_state_loss(#[case] variant: &str) {
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(fixture(variant)),
-        device: Device::Cpu,
+        device: Some(Device::flex()),
     })
     .unwrap();
     let mut request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(1000), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
@@ -381,7 +376,7 @@ async fn hub_protocol_artifacts_stay_pinned_and_load_offline(#[case] variant: &s
     let load = |options| {
         AutoModel::from_pretrained(LoadOptions {
             source: ModelSource::Hub(options),
-            device: Device::Cpu,
+            device: Some(Device::flex()),
         })
         .unwrap()
     };

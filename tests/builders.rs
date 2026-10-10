@@ -115,6 +115,23 @@ fn loading_builders_preserve_constructor_defaults_and_accept_local_sources() {
         .source(ModelSource::Local("checkpoint".into()))
         .build();
     assert!(matches!(local.source, ModelSource::Local(_)));
+    // Use automatic selection when omitted, e.g. honor the consumer's Burn backend features.
+    assert!(local.device.is_none());
+    let automatic = LoadOptions::builder()
+        .source(ModelSource::Local("checkpoint".into()))
+        .maybe_device(None)
+        .build();
+    assert!(automatic.device.is_none());
+    #[cfg(feature = "cpu")]
+    {
+        // Re-exports must accept the exact Burn type, e.g. a device shared with direct loaders.
+        let device: bdecide::models::Device = burn::tensor::Device::flex();
+        let explicit = LoadOptions::builder()
+            .source(ModelSource::Local("checkpoint".into()))
+            .device(device.clone())
+            .build();
+        assert_eq!(explicit.device, Some(device));
+    }
 }
 
 #[test]
@@ -298,8 +315,7 @@ mod cpu {
             expected
         );
         let device = BurnDevice::flex();
-        // Direct loaders report the Burn device where AutoModel reports "cpu";
-        // compare each constructor to its own established loader's full response.
+        // Compare each direct constructor to its loader's full response, e.g. Clef on Flex.
         let reference: Box<dyn DecisionModel> = if name == "tiny-laya" {
             Box::new(LayaModel::from_pretrained(&root, &device).unwrap())
         } else {

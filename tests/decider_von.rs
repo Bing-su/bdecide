@@ -27,7 +27,7 @@ fn reference(name: &str) -> Value {
 fn load(name: &str, device: Device) -> AutoModel {
     AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(fixture(name)),
-        device,
+        device: Some(device),
     })
     .expect("reference fixture and prediction must be valid")
 }
@@ -78,7 +78,7 @@ fn compare(actual: &Value, expected: &Value) {
         _ => assert_eq!(actual, expected),
     }
 }
-fn verify(name: &str, device: Device) {
+fn verify(name: &str, device: Device, case_limit: usize) {
     let model = load(name, device);
     assert_eq!(
         model.metadata().architecture,
@@ -95,11 +95,7 @@ fn verify(name: &str, device: Device) {
         .as_array()
         .expect("reference fixture and prediction must be valid")
         .iter()
-        .take(if matches!(device, Device::Cpu) {
-            usize::MAX
-        } else {
-            1
-        })
+        .take(case_limit)
     {
         let request: Request = serde_json::from_value(case["request"].clone())
             .expect("reference fixture and prediction must be valid");
@@ -122,7 +118,7 @@ fn verify(name: &str, device: Device) {
 #[case("tiny-von")]
 #[case("tiny-von-joint")]
 fn cpu_matches_upstream(#[case] name: &str) {
-    verify(name, Device::Cpu);
+    verify(name, Device::flex(), usize::MAX);
 }
 #[cfg(feature = "wgpu")]
 #[rstest]
@@ -132,7 +128,7 @@ fn cpu_matches_upstream(#[case] name: &str) {
 #[case("tiny-von-joint")]
 #[ignore = "requires a wgpu adapter"]
 fn wgpu_matches_upstream(#[case] name: &str) {
-    verify(name, Device::Wgpu);
+    verify(name, Device::wgpu(Default::default()), 1);
 }
 
 #[cfg(feature = "cpu")]
@@ -152,7 +148,7 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
                 .expect("reference fixture and prediction must be valid"),
         )
     };
-    let auto = load(name, Device::Cpu);
+    let auto = load(name, Device::flex());
     let mut request: Request =
         serde_json::from_value(reference(name)["cases"][0]["request"].clone())
             .expect("reference fixture and prediction must be valid");
@@ -183,7 +179,7 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
 #[test]
 fn von_options_are_order_invariant() {
     use bdecide::Question;
-    let model = load("tiny-von", Device::Cpu);
+    let model = load("tiny-von", Device::flex());
     let mut request: Request =
         serde_json::from_value(reference("tiny-von")["cases"][0]["request"].clone())
             .expect("reference fixture and prediction must be valid");
@@ -270,7 +266,7 @@ fn decider_score_preserves_levels_with_small_choice_limit() {
 #[case("tiny-decider")]
 #[case("tiny-von")]
 fn budgets_preserve_options_and_report_lost_state(#[case] name: &str) {
-    let model = load(name, Device::Cpu);
+    let model = load(name, Device::flex());
     let mut request: Request = serde_json::from_value(serde_json::json!({"state":"alpha ".repeat(500), "questions":{"q":{"type":"choice","instructions":"Select", "criteria":{"alpha":null,"beta":null}}}})).expect("reference fixture and prediction must be valid");
     request.options.max_len = Some(100);
     assert!(matches!(
@@ -405,7 +401,7 @@ async fn hub_revisions_stay_pinned_and_load_offline(#[case] name: &str) {
     let system_one = |options| {
         AutoModel::from_pretrained(LoadOptions {
             source: ModelSource::Hub(options),
-            device: Device::Cpu,
+            device: Some(Device::flex()),
         })
         .expect("pinned artifacts must load")
         .system_one(&request)

@@ -14,5 +14,6 @@ pub mod von;
 pub mod wald;
 pub(crate) mod weights;
 
-pub use auto::{AutoModel, Device, LoadOptions};
+pub use auto::{AutoModel, LoadOptions};
+pub use burn::tensor::Device;
 pub use decision::DecisionModel;

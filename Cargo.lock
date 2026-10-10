@@ -492,6 +492,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bdecide-downstream-tests"
+version = "0.0.0"
+dependencies = [
+ "bdecide",
+ "burn",
+ "serde_json",
+]
+
+[[package]]
 name = "bigdecimal"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"

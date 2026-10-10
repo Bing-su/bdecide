@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 license = "BlueOak-1.0.0"
 
+[workspace]
+members = ["tests/downstream"]
+
 [workspace.lints.clippy]
 get_unwrap = "warn"
 indexing_slicing = "warn"

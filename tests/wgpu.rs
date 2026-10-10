@@ -8,12 +8,14 @@ use bdecide::{
     ClefProcessor,
     DecisionModel,
     Device,
+    Error,
     LoadOptions,
     Question,
     Qwen3_5Config,
     Request,
 };
-use burn::tensor::{Device as BurnDevice, Tensor};
+use burn::tensor::wgpu::WgpuBackend;
+use burn::tensor::{Device as BurnDevice, DeviceKind, Tensor};
 use camino::Utf8Path;
 use rstest::rstest;
 use serde_json::Value;
@@ -41,6 +43,7 @@ fn invalid_wgpu_configuration_keeps_jsonl_requests_recoverable(#[case] device: &
             "--input",
         ])
         .arg(input)
+        .env("BURN_DEVICE", "wgpu")
         .env("CUBECL_WGPU_DEFAULT_DEVICE", "invalid")
         .output()
         .unwrap();
@@ -59,7 +62,8 @@ fn invalid_wgpu_configuration_keeps_jsonl_requests_recoverable(#[case] device: &
     assert_eq!(rows.len(), 2);
     for row in rows {
         if fallback {
-            assert_eq!(row["metadata"]["device"], "cpu");
+            #[cfg(feature = "cpu")]
+            assert_eq!(row["metadata"]["device"], format!("{:?}", Device::flex()));
         } else {
             assert_eq!(row["error"]["kind"], "device");
         }
@@ -69,10 +73,11 @@ fn invalid_wgpu_configuration_keeps_jsonl_requests_recoverable(#[case] device: &
 // Opt in to verify GPU parity on a wgpu adapter, e.g. Mesa's software adapter:
 // cargo test --features wgpu --test wgpu -- --ignored --nocapture
 #[rstest]
-#[case::explicit(Device::Wgpu)]
-#[case::automatic(Device::Auto)]
+#[case::explicit(Some(Device::wgpu(Default::default())))]
+#[case::automatic(None)]
 #[ignore = "requires a wgpu adapter"]
-fn wgpu_matches_independent_python_answers(#[case] device: Device) {
+fn wgpu_matches_independent_python_answers(#[case] device: Option<Device>) {
+    let expected_device = format!("{:?}", device.clone().unwrap_or_default());
     // A host may use Burn first, e.g. create a GPU tensor before loading bdecide.
     // Every case warms up the runtime so test ordering cannot hide double registration.
     let _ = Tensor::<1>::zeros([1], &BurnDevice::wgpu(Default::default())).into_data();
@@ -82,14 +87,17 @@ fn wgpu_matches_independent_python_answers(#[case] device: Device) {
         device,
     })
     .unwrap();
-    assert_eq!(model.metadata().device, "wgpu");
+    assert_eq!(model.metadata().device, expected_device);
     // Multiple independent models must reuse Burn's registered wgpu runtime.
     let second = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(fixtures.join("tiny-laya")),
-        device: Device::Wgpu,
+        device: Some(Device::wgpu(Default::default())),
     })
     .unwrap();
-    assert_eq!(second.metadata().device, "wgpu");
+    assert_eq!(
+        second.metadata().device,
+        format!("{:?}", Device::wgpu(Default::default()))
+    );
     let reference: Value =
         serde_json::from_slice(&fs::read(fixtures.join("reference.json")).unwrap()).unwrap();
     for case in reference["cases"].as_array().unwrap() {
@@ -136,8 +144,34 @@ fn wgpu_matches_independent_python_answers(#[case] device: Device) {
             actual["usage"]["input_tokens"],
             case["response"]["usage"]["input_tokens"]
         );
-        assert_eq!(actual["metadata"]["device"], "wgpu");
+        assert_eq!(actual["metadata"]["device"], expected_device);
     }
+}
+
+#[test]
+#[ignore = "requires a wgpu adapter"]
+fn explicit_wgpu_device_preserves_adapter_selection() {
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
+    // A working software adapter establishes that failure is from the supplied selector.
+    let device = Device::wgpu_options()
+        .device_kind(DeviceKind::Cpu)
+        .graphics_api(WgpuBackend::Vulkan)
+        .init()
+        .unwrap();
+    let model = AutoModel::from_pretrained(LoadOptions {
+        source: ModelSource::Local(root.clone()),
+        device: Some(device.clone()),
+    })
+    .unwrap();
+    assert_eq!(model.metadata().device, format!("{device:?}"));
+    // Never replace an explicit device or fall back to CPU, e.g. an absent virtual GPU.
+    assert!(matches!(
+        AutoModel::from_pretrained(LoadOptions {
+            source: ModelSource::Local(root),
+            device: Some(Device::wgpu(DeviceKind::VirtualGpu(8191))),
+        }),
+        Err(Error::Device(_))
+    ));
 }
 
 #[rstest]
@@ -150,7 +184,7 @@ fn clef_wgpu_processes_text_and_json_requests(#[case] variant: &str) {
         .join(variant);
     let model = AutoModel::from_pretrained(LoadOptions {
         source: ModelSource::Local(root.clone()),
-        device: Device::Wgpu,
+        device: Some(Device::wgpu(Default::default())),
     })
     .unwrap();
     let reference: Value =
@@ -189,7 +223,10 @@ fn clef_wgpu_processes_text_and_json_requests(#[case] variant: &str) {
                 }
             }
         }
-        assert_eq!(response["metadata"]["device"], "wgpu");
+        assert_eq!(
+            response["metadata"]["device"],
+            format!("{:?}", Device::wgpu(Default::default()))
+        );
         assert_eq!(response["usage"]["input_tokens"], encoded.input_ids.len());
     }
 }

@@ -25,9 +25,12 @@ jobs:
       - name: Install Nightly Rust Toolchain
         run: rustup toolchain install nightly --profile minimal --component rustfmt,clippy
       - uses: jdx/mr-boxington-action@v1
-      - run: mbx +nightly fmt --check
+      - run: mbx +nightly fmt --all --check
       - run: mbx test --locked --all-targets
       - run: mbx clippy --locked --all-targets -- -D warnings
+      # Enable Burn backends only in the consumer, e.g. no bdecide cpu/wgpu feature.
+      - run: mbx test --locked --manifest-path tests/downstream/Cargo.toml
+      - run: mbx clippy --locked --manifest-path tests/downstream/Cargo.toml --all-targets -- -D warnings
 
   wgpu:
     runs-on: ubuntu-latest

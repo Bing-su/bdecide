@@ -335,7 +335,10 @@ fn jsonl_continues_after_errors_and_keeps_stdout_machine_readable(#[case] extra:
         "invalid request: RGB pixels must contain width * height * 3 bytes"
     );
     assert_eq!(rows[1], rows[4]);
-    assert_eq!(rows[1]["metadata"]["device"], "cpu");
+    assert_eq!(
+        rows[1]["metadata"]["device"],
+        format!("{:?}", Device::flex())
+    );
 }
 
 #[test]
@@ -377,7 +380,7 @@ fn local_checkpoint_requires_every_artifact() {
     let directory = tempdir().unwrap();
     let options = LoadOptions {
         source: ModelSource::Local(Utf8PathBuf::try_from(directory.path().to_path_buf()).unwrap()),
-        device: Device::Cpu,
+        device: Some(Device::flex()),
     };
     assert!(matches!(
         AutoModel::from_pretrained(options),

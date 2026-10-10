@@ -2,11 +2,12 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, BufWriter, ErrorKind, Write};
 use std::process::ExitCode;
 
+#[cfg(any(feature = "cpu", feature = "wgpu"))]
+use bdecide::Device;
 use bdecide::hub::{HubOptions, ModelSource, Token};
 use bdecide::{
     AutoModel,
     DecisionModel,
-    Device,
     Error,
     LoadOptions,
     Request,
@@ -172,12 +173,33 @@ fn predict_request(args: &Predict, model: &mut Option<AutoModel>, text: &str) ->
     request.validate()?;
     let model = match model {
         Some(model) => model,
-        None => model.insert(AutoModel::from_pretrained(load_options(args))?),
+        None => model.insert(AutoModel::from_pretrained(load_options(args)?)?),
     };
     model.system_one(&request)
 }
 
-fn load_options(args: &Predict) -> LoadOptions {
+fn load_options(args: &Predict) -> Result<LoadOptions> {
+    let device = match args.device {
+        CliDevice::Cpu => {
+            #[cfg(feature = "cpu")]
+            {
+                Some(Device::flex())
+            }
+            #[cfg(not(feature = "cpu"))]
+            return Err(Error::Device(
+                "CPU backend is disabled; enable cpu or select wgpu".into(),
+            ));
+        }
+        CliDevice::Wgpu => {
+            #[cfg(feature = "wgpu")]
+            {
+                Some(Device::wgpu(Default::default()))
+            }
+            #[cfg(not(feature = "wgpu"))]
+            return Err(Error::Device("rebuild with --features wgpu".into()));
+        }
+        CliDevice::Auto => None,
+    };
     let path = Utf8PathBuf::from(&args.model);
     let source = if path.is_dir() || path.is_absolute() || args.model.starts_with('.') {
         ModelSource::Local(match &args.subfolder {
@@ -200,14 +222,7 @@ fn load_options(args: &Predict) -> LoadOptions {
         };
         ModelSource::Hub(options)
     };
-    LoadOptions {
-        source,
-        device: match args.device {
-            CliDevice::Cpu => Device::Cpu,
-            CliDevice::Wgpu => Device::Wgpu,
-            CliDevice::Auto => Device::Auto,
-        },
-    }
+    Ok(LoadOptions { source, device })
 }
 
 #[cfg(test)]
@@ -218,6 +233,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "cpu")]
     fn predict_defaults_to_cpu_and_automatic_auth() {
         let words = harness::argv(["predict", "--model", "owner/repo"]);
         let cli = harness::parse(Bdecide::spec(), &words.words(), Bdecide::parse_from)
@@ -226,8 +242,8 @@ mod tests {
         assert!(args.input.is_none());
         assert!(!args.jsonl);
         assert!(!args.truncate);
-        let options = load_options(&args);
-        assert!(matches!(options.device, Device::Cpu));
+        let options = load_options(&args).unwrap();
+        assert_eq!(options.device, Some(Device::flex()));
         let ModelSource::Hub(hub) = options.source else {
             panic!("owner/repo should select the Hub");
         };
@@ -261,8 +277,20 @@ mod tests {
         let Commands::Predict(args) = cli.command;
         assert!(args.jsonl);
         assert!(args.truncate);
-        let options = load_options(&args);
-        assert!(matches!(options.device, Device::Wgpu));
+        #[cfg(not(feature = "wgpu"))]
+        assert!(matches!(load_options(&args), Err(Error::Device(_))));
+        #[cfg(feature = "wgpu")]
+        assert_eq!(
+            load_options(&args).unwrap().device,
+            Some(Device::wgpu(Default::default()))
+        );
+        // Inspect Hub policy without creating a disabled backend, e.g. CPU-only builds.
+        let args = Predict {
+            device: CliDevice::Auto,
+            ..args
+        };
+        let options = load_options(&args).unwrap();
+        assert!(options.device.is_none());
         let ModelSource::Hub(hub) = options.source else {
             panic!("owner/repo should select the Hub");
         };
@@ -294,12 +322,23 @@ mod tests {
             .expect("predict arguments should parse");
         let Commands::Predict(args) = cli.command;
         assert_eq!(args.input, Some(Utf8PathBuf::from("requests.jsonl")));
-        let options = load_options(&args);
-        assert!(matches!(options.device, Device::Auto));
+        let options = load_options(&args).unwrap();
+        assert!(options.device.is_none());
         let ModelSource::Local(path) = options.source else {
             panic!("./checkpoint should select a local directory");
         };
         assert_eq!(path, Utf8PathBuf::from("./checkpoint").join("nested"));
+    }
+
+    #[test]
+    #[cfg(not(feature = "cpu"))]
+    fn predict_rejects_disabled_cpu_before_model_io() {
+        // Preserve the CLI's explicit default, e.g. a WGPU-only binary still rejects --device cpu.
+        let words = harness::argv(["predict", "--model", "./missing-checkpoint"]);
+        let cli = harness::parse(Bdecide::spec(), &words.words(), Bdecide::parse_from)
+            .expect("predict arguments should parse");
+        let Commands::Predict(args) = cli.command;
+        assert!(matches!(load_options(&args), Err(Error::Device(_))));
     }
 
     #[rstest]
