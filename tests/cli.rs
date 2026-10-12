@@ -12,7 +12,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
 use tempfile::{NamedTempFile, tempdir};
-use usage::test::command;
+use usage_rs::test::command;
 
 #[rstest]
 #[case::help("--help", "Evaluate typed questions")]

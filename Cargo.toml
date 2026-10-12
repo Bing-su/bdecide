@@ -69,7 +69,7 @@ allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
 
 [dependencies]
-bon = "3.10"
+bon = "3"
 burn = { version = "0.22", default-features = false, features = ["linalg", "pytorch", "safetensors", "signal", "std"] }
 burn-std = { version = "0.22", default-features = false, features = ["std"] }
 camino = { version = "1", features = ["serde1"] }
@@ -84,7 +84,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 symphonia = { version = "0.6", features = ["all"] }
 thiserror = "2"
 tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
-usage = { package = "usage-rs", version = "6" }
+usage-rs = "7"
 
 [dev-dependencies]
 approx = "0.5"
@@ -92,7 +92,7 @@ proptest = "1"
 rstest = "0.27"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt"] }
-usage = { package = "usage-rs", version = "6", features = ["test"] }
+usage-rs = { version = "7", features = ["test"] }
 wiremock = "0.6"
 
 [features]

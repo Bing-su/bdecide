@@ -17,7 +17,7 @@ use bdecide::{
 };
 use camino::Utf8PathBuf;
 use serde::Serialize;
-use usage::{Args, Cli, Run, Subcommands, ValueEnum};
+use usage_rs::{Args, Cli, Run, Subcommands, ValueEnum};
 
 /// Evaluate typed questions with a locally executed decision model.
 #[derive(Cli, Debug)]
@@ -228,7 +228,7 @@ fn load_options(args: &Predict) -> Result<LoadOptions> {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
-    use usage::test::{self as harness, Outcome, Page};
+    use usage_rs::test::{self as harness, Outcome, Page};
 
     use super::*;
 

@@ -3,7 +3,7 @@ mod cli;
 
 use std::process::ExitCode;
 
-use usage::Run;
+use usage_rs::Run;
 
 use crate::cli::Bdecide;
 
