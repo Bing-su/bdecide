@@ -15,8 +15,10 @@ pub struct Request {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[builder(default)]
     pub images: Vec<ImageInput>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub audio: Option<AudioInput>,
+    /// Keep clip order; each model checks its limit, e.g. D1Omni accepts at most one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[builder(default)]
+    pub audio: Vec<AudioInput>,
     #[serde(default)]
     #[builder(default)]
     pub options: PredictOptions,
@@ -100,13 +102,13 @@ impl Request {
         if !matches!(
             self.state,
             Value::String(_) | Value::Object(_) | Value::Array(_)
-        ) && !(self.state.is_null() && (!self.images.is_empty() || self.audio.is_some()))
+        ) && !(self.state.is_null() && (!self.images.is_empty() || !self.audio.is_empty()))
         {
             return Err(Error::InvalidRequest(
                 "state must be text, a JSON object, or a conversation array".into(),
             ));
         }
-        if !self.images.is_empty() && self.audio.is_some() {
+        if !self.images.is_empty() && !self.audio.is_empty() {
             return Err(Error::InvalidRequest(
                 "a request carries images or audio, not both".into(),
             ));
@@ -114,7 +116,7 @@ impl Request {
         for image in &self.images {
             image.validate()?;
         }
-        if let Some(audio) = &self.audio {
+        for audio in &self.audio {
             audio.validate()?;
         }
         for (id, q) in &self.questions {
@@ -145,7 +147,7 @@ impl Request {
 
     pub(crate) fn validate_text_only(&self) -> Result<()> {
         self.validate()?;
-        if !self.images.is_empty() || self.audio.is_some() {
+        if !self.images.is_empty() || !self.audio.is_empty() {
             return Err(Error::InvalidRequest("this model accepts text only".into()));
         }
         Ok(())
@@ -200,6 +202,61 @@ mod tests {
     use super::*;
 
     #[rstest]
+    #[case::omitted(serde_json::json!({"state": "alpha", "questions": {}}))]
+    #[case::empty(serde_json::json!({"state": "alpha", "questions": {}, "audio": []}))]
+    fn empty_audio_defaults_and_is_omitted(#[case] value: Value) {
+        let request: Request = serde_json::from_value(value).expect("valid request");
+        request
+            .validate_text_only()
+            .expect("empty audio is text-only");
+        assert!(request.audio.is_empty());
+        assert!(
+            serde_json::to_value(&request)
+                .expect("serializable request")
+                .get("audio")
+                .is_none()
+        );
+        assert!(
+            Request::new(request.state, request.questions)
+                .audio
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn multiple_audio_clips_preserve_order_and_validate_every_clip() {
+        let audio = serde_json::json!([
+            {"samples": [0.25], "sample_rate": 16000},
+            {"pcm16": [123], "sample_rate": 16000}
+        ]);
+        let mut request = Request::builder()
+            .state(Value::Null)
+            .questions(IndexMap::new())
+            .audio(serde_json::from_value(audio.clone()).expect("valid audio clips"))
+            .build();
+        request
+            .validate()
+            .expect("common request accepts multiple clips");
+        request
+            .validate_text_only()
+            .expect_err("text-only models reject audio");
+        let serialized = serde_json::to_value(&request).expect("serializable request");
+        assert_eq!(serialized.get("audio"), Some(&audio));
+        let restored: Request = serde_json::from_value(serialized).expect("valid audio list");
+        assert_eq!(
+            serde_json::to_value(restored.audio).expect("serializable clips"),
+            audio
+        );
+        request.audio.push(AudioInput::Samples {
+            samples: vec![0.0],
+            sample_rate: 8000,
+        });
+        request
+            .validate()
+            .expect_err("validate clips beyond the first");
+    }
+
+    #[rstest]
     #[case::defaults(None, None)]
     #[case::minimum_max_len(Some(4), None)]
     #[case::minimum_head_max_len(None, Some(16))]
@@ -210,7 +267,7 @@ mod tests {
             state: Value::String("alpha".into()),
             questions: IndexMap::new(),
             images: Vec::new(),
-            audio: None,
+            audio: Vec::new(),
             options: PredictOptions {
                 max_len,
                 head_max_len,

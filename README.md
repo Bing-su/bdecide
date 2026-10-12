@@ -123,15 +123,16 @@ For example, save this as `request.json` and run
 }
 ```
 
-For Omni speech, replace `images` with `"audio": "speech.wav"` and use
+For Omni speech, replace `images` with `"audio": ["speech.wav"]` and use
 `--model LiquidAI/d1-omni-600M`. Media paths resolve against the process working
 directory; files are decoded locally. `state: null` permits media-only requests.
 
 | Field    | Accepted values                                                                                                                                    |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `images` | Ordered PNG/JPEG/WebP paths or `{"width":256,"height":256,"pixels":[...]}` with interleaved RGB bytes                                              |
-| `audio`  | A Symphonia-supported file path (including WAV, FLAC, MP3 and Ogg), `{"samples":[0.0],"sample_rate":16000}` or `{"pcm16":[0],"sample_rate":16000}` |
+| `audio`  | An ordered array of Symphonia-supported file paths (including WAV, FLAC, MP3 and Ogg), `{"samples":[0.0],"sample_rate":16000}` or `{"pcm16":[0],"sample_rate":16000}` |
 
+Omitted or empty `audio` means no audio. D1Omni accepts at most one clip per request.
 Audio must be 16 kHz mono; float samples must be finite and in `[-1,1]`.
 The official frontend pads clips shorter than 0.5 s and cuts them at 30 s.
 Images and audio cannot be combined in one request. Other model families reject

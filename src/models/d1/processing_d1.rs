@@ -338,7 +338,7 @@ impl Processor {
             .ok_or_else(|| Error::InvalidRequest("media exceed max_len".into()))?;
         let limit = available.min(if !request.images.is_empty() {
             config.image_text_length
-        } else if request.audio.is_some() {
+        } else if !request.audio.is_empty() {
             config.audio_text_length
         } else {
             config.max_length
@@ -348,7 +348,7 @@ impl Processor {
                 "media leave fewer than 64 text positions; send fewer images".into(),
             ));
         }
-        let options = omni_options(q, !request.images.is_empty(), request.audio.is_some())?;
+        let options = omni_options(q, !request.images.is_empty(), !request.audio.is_empty())?;
         let budget = (options.len().saturating_mul(24).saturating_add(32))
             .min(limit / 2)
             .max(96);
@@ -370,7 +370,7 @@ impl Processor {
         question.push(self.special("<|reserved_11|>")?);
         self.truncated(request, id, dropped, true, usage)?;
         let state = if request.state.is_null() {
-            if request.audio.is_some() {
+            if !request.audio.is_empty() {
                 "{}".into()
             } else {
                 String::new()

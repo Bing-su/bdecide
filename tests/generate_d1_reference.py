@@ -318,12 +318,12 @@ def generate(kind: str) -> None:
                 {
                     "state": None,
                     "questions": cases[0]["questions"],
-                    "audio": "speech.wav",
+                    "audio": ["speech.wav"],
                 },
                 {
                     "state": "alpha",
                     "questions": cases[0]["questions"],
-                    "audio": {"pcm16": samples[:1000].tolist(), "sample_rate": 16000},
+                    "audio": [{"pcm16": samples[:1000].tolist(), "sample_rate": 16000}],
                 },
                 {
                     "state": "alpha " * 500,
@@ -441,7 +441,9 @@ def evaluate(kind, engine, cases, image_map, samples) -> list[dict]:
     output = []
     for request in cases:
         images = [image_map[name] for name in request.get("images", [])] or None
-        audio = request.get("audio")
+        clips = request.get("audio", [])
+        assert len(clips) <= 1, "D1 reference accepts at most one audio clip"
+        audio = clips[0] if clips else None
         pcm = (
             samples
             if isinstance(audio, str)

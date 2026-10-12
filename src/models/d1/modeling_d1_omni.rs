@@ -25,7 +25,7 @@ use crate::models::lfm2_vl::vision::{self, Vision};
 use crate::models::lfm2_vl::weights::weight_name;
 use crate::models::weights;
 use crate::utils::attention::attend;
-use crate::{DecisionModel, Metadata, Question, Request, Response, Result, Usage};
+use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
 
 /// D1Omni-600M's encoder and decision API, e.g. speech or image input.
 pub struct D1OmniModel {
@@ -105,10 +105,15 @@ impl DecisionModel for D1OmniModel {
 
     fn system_one(&self, request: &Request) -> Result<Response> {
         self.processor.validate(self.config.max_length, request)?;
+        if request.audio.len() > 1 {
+            return Err(Error::InvalidRequest(
+                "d1-omni accepts at most one audio clip".into(),
+            ));
+        }
         let images = vision::preprocess(&request.images, false)?;
         let media = if !images.is_empty() {
             Some(self.network.vision.forward(&images, &self.device))
-        } else if let Some(input) = &request.audio {
+        } else if let Some(input) = request.audio.first() {
             Some(self.network.audio.forward(&input.decode()?, &self.device))
         } else {
             None

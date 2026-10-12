@@ -20,8 +20,10 @@ fn request(root: &Utf8Path, value: Value) -> Request {
             *path = root.join(&*path);
         }
     }
-    if let Some(bdecide::AudioInput::Path(path)) = &mut request.audio {
-        *path = root.join(&*path);
+    for audio in &mut request.audio {
+        if let bdecide::AudioInput::Path(path) = audio {
+            *path = root.join(&*path);
+        }
     }
     request
 }
@@ -164,7 +166,7 @@ fn wgpu_matches_liquidai_text_image_audio(#[case] kind: &str, #[case] case_index
 fn rejects_unsupported_media_and_lost_tokens() {
     let mut q: Request = serde_json::from_value(serde_json::json!({
         "state": "alpha", "questions": {"q": {"type": "noul", "instructions": "cancel?"}},
-        "audio": {"samples": [0.0], "sample_rate": 16000}
+        "audio": [{"samples": [0.0], "sample_rate": 16000}]
     }))
     .expect("valid reference fixture");
     let model = AutoModel::from_pretrained(
@@ -184,7 +186,7 @@ fn rejects_unsupported_media_and_lost_tokens() {
     }];
     assert!(matches!(q.validate(), Err(Error::InvalidRequest(_))));
     q.images.clear();
-    q.audio = None;
+    q.audio.clear();
     q.state = Value::String("alpha ".repeat(500));
     q.options.max_len = Some(240);
     let model = AutoModel::from_pretrained(
@@ -202,6 +204,33 @@ fn rejects_unsupported_media_and_lost_tokens() {
     assert!(response.usage.truncated);
     assert!(response.usage.state_tokens_dropped > 0);
     assert_eq!(response.usage.truncated_questions, ["q"]);
+}
+
+#[test]
+#[cfg(feature = "cpu")]
+fn omni_rejects_multiple_audio_clips_before_decoding() {
+    let request: Request = serde_json::from_value(serde_json::json!({
+        "state": null,
+        "questions": {"q": {"type": "noul", "instructions": "cancel?"}},
+        "audio": ["missing-first.wav", "missing-second.wav"]
+    }))
+    .expect("valid audio list");
+    request
+        .validate()
+        .expect("common request accepts multiple clips");
+    let model = AutoModel::from_pretrained(
+        LoadOptions::builder()
+            .source(ModelSource::Local(fixture("omni")))
+            .build(),
+    )
+    .expect("valid reference fixture");
+    let error = model
+        .system_one(&request)
+        .expect_err("Omni rejects multiple clips");
+    assert!(matches!(
+        error,
+        Error::InvalidRequest(message) if message == "d1-omni accepts at most one audio clip"
+    ));
 }
 
 #[test]

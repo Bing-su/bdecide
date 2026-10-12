@@ -54,8 +54,8 @@ impl DecisionModel for D1Model {
                 .max_position_embeddings,
             request,
         )?;
-        if request.audio.is_some() {
-            return Err(Error::InvalidRequest("d1-3B does not accept audio".into()));
+        if !request.audio.is_empty() {
+            return Err(Error::InvalidRequest("d1 does not accept audio".into()));
         }
         let images = vision::preprocess(&request.images, true)?;
         let media =
