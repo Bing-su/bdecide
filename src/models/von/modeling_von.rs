@@ -18,9 +18,9 @@ use crate::{
     Error,
     Metadata,
     Question,
-    Request,
-    Response,
     Result,
+    SystemOneRequest,
+    SystemOneResponse,
     Truncation,
     Usage,
 };
@@ -133,7 +133,7 @@ impl VonModel {
         state: &str,
         question: &str,
         options: &[String],
-        request: &Request,
+        request: &SystemOneRequest,
         id: &str,
         usage: &mut Usage,
     ) -> Result<(Vec<f64>, usize)> {
@@ -264,7 +264,7 @@ impl DecisionModel for VonModel {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         request.validate_text_only()?;
         if request.questions.is_empty()
             || request.options.head_max_len.is_some()
@@ -357,7 +357,7 @@ impl DecisionModel for VonModel {
                 answer(question, probabilities, confidence, legend, 0)?,
             );
         }
-        Ok(Response::builder()
+        Ok(SystemOneResponse::builder()
             .model(self.metadata.model_id.clone())
             .answers(answers)
             .usage(usage)

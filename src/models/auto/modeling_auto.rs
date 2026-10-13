@@ -14,7 +14,7 @@ use crate::models::laya::LayaModel;
 use crate::models::vev::VevModel;
 use crate::models::von::VonModel;
 use crate::models::wald::WaldModel;
-use crate::{DecisionModel, Error, Metadata, Request, Response, Result};
+use crate::{DecisionModel, Error, Metadata, Result, SystemOneRequest, SystemOneResponse};
 
 #[derive(Debug, Clone, Builder)]
 pub struct LoadOptions {
@@ -89,7 +89,7 @@ impl AutoModel {
 }
 
 impl DecisionModel for AutoModel {
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         // Backend errors may be panics (e.g. device loss). Keep JSONL processing
         // recoverable instead of letting one backend failure terminate the CLI.
         catch_unwind(AssertUnwindSafe(|| self.model.system_one(request))).map_err(|_panic| {

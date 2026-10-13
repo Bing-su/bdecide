@@ -27,7 +27,17 @@ use crate::hub::{ModelSource, resolve_clef};
 use crate::models::qwen3_5::{Qwen3_5Config, Qwen3_5ForCausalLM};
 use crate::utils::attention::attention;
 use crate::utils::{read_checkpoint_json, render};
-use crate::{Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result};
+use crate::{
+    Action,
+    Answer,
+    DecisionModel,
+    Error,
+    Metadata,
+    Question,
+    Result,
+    SystemOneRequest,
+    SystemOneResponse,
+};
 
 /// Own Clef's pretrained backbone, head, and processor for repeated predictions.
 pub struct ClefModel {
@@ -455,7 +465,7 @@ impl DecisionModel for ClefModel {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         let record = self.processor.process(request)?;
         let logits = self.forward(&record)?;
         let mut answers = IndexMap::new();
@@ -532,7 +542,7 @@ impl DecisionModel for ClefModel {
             };
             answers.insert(id.clone(), answer);
         }
-        Ok(Response {
+        Ok(SystemOneResponse {
             model: self.metadata.model_id.clone(),
             answers,
             usage: record.usage,
@@ -677,7 +687,8 @@ mod tests {
         let model = ClefModel::from_pretrained(&root, &device).unwrap();
         let reference: Value = read_checkpoint_json(&root.join("reference.json")).unwrap();
         for case in reference["cases"].as_array().unwrap() {
-            let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
+            let request: SystemOneRequest =
+                serde_json::from_value(case["request"].clone()).unwrap();
             let encoded = model.processor.process(&request).unwrap();
             // Compare inference on the same upstream tokens; JSON key order can change ours.
             // For example, description and option_id need not appear in Python's order.
@@ -787,7 +798,7 @@ mod tests {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-clef-flash");
         let config = read_checkpoint_json(&root.join("config.json")).unwrap();
         let processor = ClefProcessor::from_pretrained(&root, &config).unwrap();
-        let mut request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(600), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
+        let mut request: SystemOneRequest = serde_json::from_value(json!({"state":"alpha ".repeat(600), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
         assert!(matches!(
             processor.process(&request),
             Err(Error::InvalidRequest(_))

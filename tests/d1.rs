@@ -2,7 +2,7 @@
 #[cfg(feature = "cpu")]
 use bdecide::Error;
 use bdecide::hub::ModelSource;
-use bdecide::{Answer, AutoModel, DecisionModel, Device, LoadOptions, Request};
+use bdecide::{Answer, AutoModel, DecisionModel, Device, LoadOptions, SystemOneRequest};
 use burn::tensor::Device as BurnDevice;
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
@@ -12,8 +12,9 @@ fn fixture(kind: &str) -> Utf8PathBuf {
     Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/fixtures/tiny-d1-{kind}"))
 }
 
-fn request(root: &Utf8Path, value: Value) -> Request {
-    let mut request: Request = serde_json::from_value(value).expect("valid reference fixture");
+fn request(root: &Utf8Path, value: Value) -> SystemOneRequest {
+    let mut request: SystemOneRequest =
+        serde_json::from_value(value).expect("valid reference fixture");
     // Resolve fixture-relative media explicitly, e.g. CLI paths remain relative to its cwd.
     for image in &mut request.images {
         if let bdecide::ImageInput::Path(path) = image {
@@ -164,7 +165,7 @@ fn wgpu_matches_liquidai_text_image_audio(#[case] kind: &str, #[case] case_index
 #[test]
 #[cfg(feature = "cpu")]
 fn rejects_unsupported_media_and_lost_tokens() {
-    let mut q: Request = serde_json::from_value(serde_json::json!({
+    let mut q: SystemOneRequest = serde_json::from_value(serde_json::json!({
         "state": "alpha", "questions": {"q": {"type": "noul", "instructions": "cancel?"}},
         "audio": [{"samples": [0.0], "sample_rate": 16000}]
     }))
@@ -209,7 +210,7 @@ fn rejects_unsupported_media_and_lost_tokens() {
 #[test]
 #[cfg(feature = "cpu")]
 fn omni_rejects_multiple_audio_clips_before_decoding() {
-    let request: Request = serde_json::from_value(serde_json::json!({
+    let request: SystemOneRequest = serde_json::from_value(serde_json::json!({
         "state": null,
         "questions": {"q": {"type": "noul", "instructions": "cancel?"}},
         "audio": ["missing-first.wav", "missing-second.wav"]

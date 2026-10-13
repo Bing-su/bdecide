@@ -9,7 +9,16 @@ use crate::hub::{self, ModelSource};
 use crate::models::qwen3_5::readout::Readout;
 use crate::utils::decision::{answer, choice_confidence};
 use crate::utils::{read_checkpoint_json, sanitize};
-use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
+use crate::{
+    DecisionModel,
+    Error,
+    Metadata,
+    Question,
+    Result,
+    SystemOneRequest,
+    SystemOneResponse,
+    Usage,
+};
 
 /// Reuse the loaded text readout and label tokens, e.g. successive Vev requests.
 pub struct VevModel {
@@ -76,7 +85,7 @@ impl DecisionModel for VevModel {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         self.readout.validate(request)?;
         for question in request.questions.values() {
             validate_question(question)?;
@@ -113,7 +122,7 @@ impl DecisionModel for VevModel {
                 answer(question, probabilities, confidence, legend, 0)?,
             );
         }
-        Ok(Response {
+        Ok(SystemOneResponse {
             model: self.metadata.model_id.clone(),
             answers,
             usage,
@@ -162,7 +171,8 @@ mod tests {
         .unwrap();
         let reference: Value = read_checkpoint_json(&root.join("reference.json")).unwrap();
         for case in reference["cases"].as_array().unwrap() {
-            let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
+            let request: SystemOneRequest =
+                serde_json::from_value(case["request"].clone()).unwrap();
             // Keep upstream wording checks for text; JSON rendering is covered by value checks.
             // For example, a structured criterion may now use compact separators.
             if !request.state.is_string() {

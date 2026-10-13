@@ -14,8 +14,8 @@ use bdecide::{
     Question,
     Qwen3_5Config,
     Qwen3_5TextConfig,
-    Request,
-    Response,
+    SystemOneRequest,
+    SystemOneResponse,
     Truncation,
     Usage,
 };
@@ -38,8 +38,8 @@ fn request_builders_preserve_defaults_and_question_order() {
             )
         })
         .collect();
-    let direct = Request::new(json!("alpha"), questions.clone());
-    let built = Request::builder()
+    let direct = SystemOneRequest::new(json!("alpha"), questions.clone());
+    let built = SystemOneRequest::builder()
         .state(json!("alpha"))
         .questions(questions)
         .build();
@@ -68,7 +68,7 @@ fn request_builders_preserve_defaults_and_question_order() {
         serde_json::to_value(PredictOptions::new()).unwrap()
     );
 
-    let request = Request::builder()
+    let request = SystemOneRequest::builder()
         .state(json!("alpha"))
         .questions(IndexMap::new())
         .options(
@@ -160,8 +160,8 @@ fn response_and_encoded_record_builders_preserve_payloads() {
             action,
         },
     )]);
-    let direct = Response::new("local", answers.clone(), metadata.clone());
-    let built = Response::builder()
+    let direct = SystemOneResponse::new("local", answers.clone(), metadata.clone());
+    let built = SystemOneResponse::builder()
         .model("local")
         .answers(answers)
         .metadata(metadata)
@@ -301,7 +301,7 @@ mod cpu {
         let direct = AutoModel::from_pretrained(options()).unwrap();
         let via_new = AutoModel::new(options()).unwrap();
         let built = AutoModel::builder().options(options()).build().unwrap();
-        let request: Request = serde_json::from_value(
+        let request: SystemOneRequest = serde_json::from_value(
             json!({"state":"alpha", "questions":{"q":{"type":"noul","instructions":"cancel?"}}}),
         )
         .unwrap();
@@ -365,7 +365,7 @@ mod cpu {
             .config(&backbone)
             .build()
             .unwrap();
-        let request: Request = serde_json::from_value(
+        let request: SystemOneRequest = serde_json::from_value(
             json!({"state":"alpha", "questions":{"q":{"type":"noul","instructions":"cancel?"}}}),
         )
         .unwrap();

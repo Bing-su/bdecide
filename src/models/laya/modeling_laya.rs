@@ -27,7 +27,17 @@ use crate::hub::{ModelSource, resolve};
 use crate::models::modernbert::{ModernBertConfig, ModernBertModel};
 use crate::utils::attention::attend;
 use crate::utils::{read_checkpoint_json, render};
-use crate::{Action, Answer, DecisionModel, Error, Metadata, Question, Request, Response, Result};
+use crate::{
+    Action,
+    Answer,
+    DecisionModel,
+    Error,
+    Metadata,
+    Question,
+    Result,
+    SystemOneRequest,
+    SystemOneResponse,
+};
 
 // Keep the artifact layout with Laya so other architectures can supply their own.
 pub(crate) const REQUIRED_ARTIFACTS: [&str; 5] = [
@@ -173,7 +183,7 @@ impl DecisionModel for LayaModel {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         let batch = self.processor.process(request)?;
         let raw = self.forward(&batch)?;
         let mut answers = IndexMap::new();
@@ -186,7 +196,7 @@ impl DecisionModel for LayaModel {
             )?;
             answers.insert(id.clone(), decode_answer(question, &distribution, action)?);
         }
-        Ok(Response {
+        Ok(SystemOneResponse {
             model: "laya-rl-agent".into(),
             answers,
             usage: batch.usage,
@@ -483,7 +493,8 @@ mod tests {
             serde_json::from_slice(&read(&root.parent().unwrap().join("reference.json")).unwrap())
                 .unwrap();
         for case in fixtures["cases"].as_array().unwrap() {
-            let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
+            let request: SystemOneRequest =
+                serde_json::from_value(case["request"].clone()).unwrap();
             let batch = model.processor.process(&request).unwrap();
             // Verify all native PyTorch sequences directly; JSON spacing can change our tokens.
             // For example, Python may encode adjacent punctuation differently in {"a": 1}.
@@ -602,7 +613,7 @@ mod tests {
     fn default_truncation_refuses_loss_of_information() {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-laya");
         let model = LayaModel::from_pretrained(&root, &BurnDevice::flex()).unwrap();
-        let request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(100),"questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
+        let request: SystemOneRequest = serde_json::from_value(json!({"state":"alpha ".repeat(100),"questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
         assert!(matches!(
             model.system_one(&request),
             Err(Error::InvalidRequest(_))

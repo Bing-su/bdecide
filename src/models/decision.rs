@@ -1,5 +1,5 @@
 //! Define the shared System One contract, e.g. repeated requests reuse loaded models.
-use crate::{Metadata, Request, Response, Result};
+use crate::{Metadata, Result, SystemOneRequest, SystemOneResponse};
 
 /// Implement this interface to use an independently maintained decision model.
 ///
@@ -9,6 +9,6 @@ pub trait DecisionModel {
     /// Preprocess a shared state, infer its typed answers, and decode the results.
     ///
     /// For example, `model.system_one(&request)?` evaluates Choice and Score questions together.
-    fn system_one(&self, request: &Request) -> Result<Response>;
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse>;
     fn metadata(&self) -> &Metadata;
 }

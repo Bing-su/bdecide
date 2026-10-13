@@ -29,7 +29,7 @@ impl Metadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
-pub struct Response {
+pub struct SystemOneResponse {
     #[builder(into)]
     pub model: String,
     pub answers: IndexMap<String, Answer>,
@@ -38,8 +38,8 @@ pub struct Response {
     pub metadata: Metadata,
 }
 
-impl Response {
-    /// Assemble ordered answers with empty usage, e.g. `Response::new("local", answers, metadata)`.
+impl SystemOneResponse {
+    /// Assemble ordered answers with empty usage, e.g. `SystemOneResponse::new("local", answers, metadata)`.
     pub fn new(
         model: impl Into<String>,
         answers: IndexMap<String, Answer>,

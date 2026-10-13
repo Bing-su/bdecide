@@ -14,9 +14,9 @@ use crate::{
     Error,
     Metadata,
     Question,
-    Request,
-    Response,
     Result,
+    SystemOneRequest,
+    SystemOneResponse,
     Truncation,
     Usage,
 };
@@ -91,7 +91,7 @@ impl DeciderModel {
         context: &str,
         row: (&str, &[String]),
         temperature: f64,
-        request: &Request,
+        request: &SystemOneRequest,
         id: &str,
         usage: &mut Usage,
     ) -> Result<Vec<f64>> {
@@ -173,7 +173,7 @@ impl DecisionModel for DeciderModel {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         self.readout.validate(request)?;
         for question in request.questions.values() {
             let valid = match question {
@@ -275,7 +275,7 @@ impl DecisionModel for DeciderModel {
                 answer(question, probabilities, confidence, legend, 1)?,
             );
         }
-        Ok(Response::builder()
+        Ok(SystemOneResponse::builder()
             .model(self.metadata.model_id.clone())
             .answers(answers)
             .usage(usage)

@@ -7,7 +7,7 @@ use tokenizers::Tokenizer;
 
 use super::super::qwen3_5::Qwen3_5Config;
 use crate::utils::{load_tokenizer, render, token_ids};
-use crate::{Error, Question, Request, Result, Truncation, Usage};
+use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
 
 const SYSTEM_PROMPT: &str = "Read the complete state and schema. Decide every field jointly. Each answer must be exactly one of that field's allowed options.";
 
@@ -86,7 +86,7 @@ impl ClefProcessor {
         token_ids(&self.tokenizer, text, self.vocab_size, "Qwen3.5")
     }
 
-    pub fn process(&self, request: &Request) -> Result<EncodedRecord> {
+    pub fn process(&self, request: &SystemOneRequest) -> Result<EncodedRecord> {
         request.validate_text_only()?;
         if request.questions.is_empty() {
             return Err(Error::InvalidRequest(

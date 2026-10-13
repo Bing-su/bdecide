@@ -10,9 +10,9 @@ use bdecide::{
     DecisionModel,
     Error,
     LoadOptions,
-    Request,
-    Response,
     Result,
+    SystemOneRequest,
+    SystemOneResponse,
     Truncation,
 };
 use camino::Utf8PathBuf;
@@ -164,8 +164,12 @@ fn respond(
     Ok(failed)
 }
 
-fn predict_request(args: &Predict, model: &mut Option<AutoModel>, text: &str) -> Result<Response> {
-    let mut request: Request = serde_json::from_str(text)?;
+fn predict_request(
+    args: &Predict,
+    model: &mut Option<AutoModel>,
+    text: &str,
+) -> Result<SystemOneResponse> {
+    let mut request: SystemOneRequest = serde_json::from_str(text)?;
     if args.truncate {
         request.options.truncation = Truncation::Truncate;
     }

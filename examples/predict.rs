@@ -3,14 +3,14 @@
 use std::env::args;
 use std::error::Error;
 
-use bdecide::{AutoModel, DecisionModel, LoadOptions, Request};
+use bdecide::{AutoModel, DecisionModel, LoadOptions, SystemOneRequest};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let repo = args()
         .nth(1)
         .unwrap_or_else(|| "convaiinnovations/laya-multilingual".into());
     let model = AutoModel::from_pretrained(LoadOptions::new(repo))?;
-    let request: Request = serde_json::from_str(include_str!("request.json"))?;
+    let request: SystemOneRequest = serde_json::from_str(include_str!("request.json"))?;
     println!(
         "{}",
         serde_json::to_string_pretty(&model.system_one(&request)?)?

@@ -12,7 +12,7 @@ use bdecide::{
     LoadOptions,
     Question,
     Qwen3_5Config,
-    Request,
+    SystemOneRequest,
 };
 use burn::tensor::wgpu::WgpuBackend;
 use burn::tensor::{Device as BurnDevice, DeviceKind, Tensor};
@@ -101,7 +101,7 @@ fn wgpu_matches_independent_python_answers(#[case] device: Option<Device>) {
     let reference: Value =
         serde_json::from_slice(&fs::read(fixtures.join("reference.json")).unwrap()).unwrap();
     for case in reference["cases"].as_array().unwrap() {
-        let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
+        let request: SystemOneRequest = serde_json::from_value(case["request"].clone()).unwrap();
         // Keep end-to-end Python parity for text prompts; native-token parity covers JSON.
         let text_only = request.state.is_string()
             && request.questions.values().all(|question| match question {

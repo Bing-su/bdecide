@@ -111,7 +111,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::Request;
+    use crate::SystemOneRequest;
     use crate::utils::read_checkpoint_json;
 
     #[test]
@@ -119,7 +119,8 @@ mod tests {
         let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-wald");
         let reference: Value = read_checkpoint_json(&root.join("reference.json")).unwrap();
         for case in reference["cases"].as_array().unwrap().iter().take(5) {
-            let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
+            let request: SystemOneRequest =
+                serde_json::from_value(case["request"].clone()).unwrap();
             // Check training wording independently of scalar formatting, e.g. 1e-06 vs 1e-6.
             if !request.state.is_string() {
                 continue;

@@ -3,7 +3,7 @@ use std::fs;
 
 use approx::abs_diff_eq;
 use bdecide::hub::ModelSource;
-use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, Request};
+use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, SystemOneRequest};
 #[cfg(feature = "cpu")]
 use bdecide::{DeciderModel, Error, Truncation, VonModel};
 #[cfg(feature = "cpu")]
@@ -97,7 +97,7 @@ fn verify(name: &str, device: Device, case_limit: usize) {
         .iter()
         .take(case_limit)
     {
-        let request: Request = serde_json::from_value(case["request"].clone())
+        let request: SystemOneRequest = serde_json::from_value(case["request"].clone())
             .expect("reference fixture and prediction must be valid");
         let response = model
             .system_one(&request)
@@ -149,7 +149,7 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
         )
     };
     let auto = load(name, Device::flex());
-    let mut request: Request =
+    let mut request: SystemOneRequest =
         serde_json::from_value(reference(name)["cases"][0]["request"].clone())
             .expect("reference fixture and prediction must be valid");
     let expected = serde_json::to_value(
@@ -180,7 +180,7 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
 fn von_options_are_order_invariant() {
     use bdecide::Question;
     let model = load("tiny-von", Device::flex());
-    let mut request: Request =
+    let mut request: SystemOneRequest =
         serde_json::from_value(reference("tiny-von")["cases"][0]["request"].clone())
             .expect("reference fixture and prediction must be valid");
     request.questions.retain(|id, _| id == "choice");
@@ -232,7 +232,7 @@ fn decider_score_preserves_levels_with_small_choice_limit() {
     let model =
         DeciderModel::from_pretrained(&ModelSource::Local(root.into()), &BurnDevice::flex())
             .unwrap();
-    let mut request: Request =
+    let mut request: SystemOneRequest =
         serde_json::from_value(reference("tiny-decider-list")["cases"][0]["request"].clone())
             .unwrap();
     assert!(matches!(
@@ -267,7 +267,7 @@ fn decider_score_preserves_levels_with_small_choice_limit() {
 #[case("tiny-von")]
 fn budgets_preserve_options_and_report_lost_state(#[case] name: &str) {
     let model = load(name, Device::flex());
-    let mut request: Request = serde_json::from_value(serde_json::json!({"state":"alpha ".repeat(500), "questions":{"q":{"type":"choice","instructions":"Select", "criteria":{"alpha":null,"beta":null}}}})).expect("reference fixture and prediction must be valid");
+    let mut request: SystemOneRequest = serde_json::from_value(serde_json::json!({"state":"alpha ".repeat(500), "questions":{"q":{"type":"choice","instructions":"Select", "criteria":{"alpha":null,"beta":null}}}})).expect("reference fixture and prediction must be valid");
     request.options.max_len = Some(100);
     assert!(matches!(
         model.system_one(&request),
@@ -396,8 +396,9 @@ async fn hub_revisions_stay_pinned_and_load_offline(#[case] name: &str) {
     );
     options.subfolder = Some("nested".into());
     options.token = Token::Anonymous;
-    let request: Request = serde_json::from_value(reference(name)["cases"][0]["request"].clone())
-        .expect("reference request must be valid");
+    let request: SystemOneRequest =
+        serde_json::from_value(reference(name)["cases"][0]["request"].clone())
+            .expect("reference request must be valid");
     let system_one = |options| {
         AutoModel::from_pretrained(LoadOptions {
             source: ModelSource::Hub(options),

@@ -9,7 +9,7 @@ use super::D1OmniConfig;
 use crate::models::lfm2_vl::Lfm2VlConfig;
 use crate::models::lfm2_vl::vision::ImageCrops;
 use crate::utils::{load_tokenizer, render, sanitize, token_ids};
-use crate::{Error, Question, Request, Result, Truncation, Usage};
+use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
 
 pub(super) struct Processor {
     tokenizer: Tokenizer,
@@ -82,7 +82,11 @@ impl Processor {
             .ok_or_else(|| Error::Tokenizer(format!("missing or out-of-vocabulary token {token}")))
     }
 
-    pub(super) fn validate(&self, max_positions: usize, request: &Request) -> Result<usize> {
+    pub(super) fn validate(
+        &self,
+        max_positions: usize,
+        request: &SystemOneRequest,
+    ) -> Result<usize> {
         request.validate()?;
         if request.questions.is_empty() || request.options.head_max_len.is_some() {
             return Err(Error::InvalidRequest(
@@ -120,7 +124,7 @@ impl Processor {
 
     pub(super) fn causal(
         &self,
-        request: &Request,
+        request: &SystemOneRequest,
         q: &Question,
         images: &[ImageCrops],
         limit: usize,
@@ -326,7 +330,7 @@ impl Processor {
     pub(super) fn omni(
         &self,
         config: &D1OmniConfig,
-        request: &Request,
+        request: &SystemOneRequest,
         q: &Question,
         prefix: usize,
         id: &str,
@@ -414,7 +418,7 @@ impl Processor {
 
     fn truncated(
         &self,
-        request: &Request,
+        request: &SystemOneRequest,
         id: &str,
         count: usize,
         head: bool,

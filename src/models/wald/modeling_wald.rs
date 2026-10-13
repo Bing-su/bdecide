@@ -9,7 +9,16 @@ use crate::hub::{self, ModelSource};
 use crate::models::qwen3_5::readout::Readout;
 use crate::utils::decision::{answer, argmax, choice_confidence, softmax};
 use crate::utils::{read_checkpoint_json, sanitize};
-use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
+use crate::{
+    DecisionModel,
+    Error,
+    Metadata,
+    Question,
+    Result,
+    SystemOneRequest,
+    SystemOneResponse,
+    Usage,
+};
 
 /// Reuse the loaded text readout and calibration, e.g. successive Wald requests.
 pub struct WaldModel {
@@ -80,7 +89,7 @@ impl WaldModel {
         state: &str,
         question: &Question,
         options: &[String],
-        request: &Request,
+        request: &SystemOneRequest,
         id: &str,
         usage: &mut Usage,
     ) -> Result<Vec<f64>> {
@@ -110,7 +119,7 @@ impl WaldModel {
         state: &str,
         question: &Question,
         options: &[String],
-        request: &Request,
+        request: &SystemOneRequest,
         id: &str,
         usage: &mut Usage,
     ) -> Result<Vec<f64>> {
@@ -166,7 +175,7 @@ impl DecisionModel for WaldModel {
         clippy::float_cmp,
         reason = "temperature=1 exactly preserves the upstream uncalibrated probabilities"
     )]
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         self.readout.validate(request)?;
         for question in request.questions.values() {
             if matches!(question, Question::Choice { criteria, .. } if criteria.len() > 255)
@@ -225,7 +234,7 @@ impl DecisionModel for WaldModel {
                 answer(question, probabilities, confidence, legend, 1)?,
             );
         }
-        Ok(Response {
+        Ok(SystemOneResponse {
             model: self.metadata.model_id.clone(),
             answers,
             usage,

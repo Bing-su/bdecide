@@ -25,7 +25,16 @@ use crate::models::lfm2_vl::vision::{self, Vision};
 use crate::models::lfm2_vl::weights::weight_name;
 use crate::models::weights;
 use crate::utils::attention::attend;
-use crate::{DecisionModel, Error, Metadata, Question, Request, Response, Result, Usage};
+use crate::{
+    DecisionModel,
+    Error,
+    Metadata,
+    Question,
+    Result,
+    SystemOneRequest,
+    SystemOneResponse,
+    Usage,
+};
 
 /// D1Omni-600M's encoder and decision API, e.g. speech or image input.
 pub struct D1OmniModel {
@@ -103,7 +112,7 @@ impl DecisionModel for D1OmniModel {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         self.processor.validate(self.config.max_length, request)?;
         if request.audio.len() > 1 {
             return Err(Error::InvalidRequest(
@@ -162,7 +171,7 @@ impl DecisionModel for D1OmniModel {
             }
             answers.insert(id.clone(), answer(q, &logits, 1)?);
         }
-        Ok(Response {
+        Ok(SystemOneResponse {
             model: self.metadata.model_id.clone(),
             answers,
             usage,

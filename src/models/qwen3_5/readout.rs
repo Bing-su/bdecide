@@ -9,7 +9,7 @@ use tokenizers::Tokenizer;
 use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
 use crate::utils::decision::softmax;
 use crate::utils::{load_tokenizer, token_ids, tokenize};
-use crate::{Error, Question, Request, Result, Truncation, Usage};
+use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
 
 pub(crate) struct Readout {
     pub(crate) model: Qwen3_5ForCausalLM,
@@ -43,7 +43,7 @@ impl Readout {
             .map(|logits| logits.into_iter().map(f64::from).collect())
     }
 
-    pub(crate) fn validate(&self, request: &Request) -> Result<usize> {
+    pub(crate) fn validate(&self, request: &SystemOneRequest) -> Result<usize> {
         request.validate_text_only()?;
         if request.questions.is_empty() || request.options.head_max_len.is_some() {
             return Err(Error::InvalidRequest(
@@ -74,7 +74,7 @@ impl Readout {
         prompt: &str,
         state: &[Range<usize>],
         groups: &[Vec<u32>],
-        request: &Request,
+        request: &SystemOneRequest,
         id: &str,
         usage: &mut Usage,
     ) -> Result<Vec<f64>> {

@@ -9,7 +9,7 @@ use crate::{Error, Result};
 /// Preserve question and criterion insertion order because it changes token IDs.
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(deny_unknown_fields)]
-pub struct Request {
+pub struct SystemOneRequest {
     pub state: Value,
     pub questions: IndexMap<String, Question>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -92,8 +92,8 @@ impl PredictOptions {
     }
 }
 
-impl Request {
-    /// Preserve ordered questions with default options, e.g. `Request::new(state, questions)`.
+impl SystemOneRequest {
+    /// Preserve ordered questions with default options, e.g. `SystemOneRequest::new(state, questions)`.
     pub fn new(state: Value, questions: IndexMap<String, Question>) -> Self {
         Self::builder().state(state).questions(questions).build()
     }
@@ -205,7 +205,7 @@ mod tests {
     #[case::omitted(serde_json::json!({"state": "alpha", "questions": {}}))]
     #[case::empty(serde_json::json!({"state": "alpha", "questions": {}, "audio": []}))]
     fn empty_audio_defaults_and_is_omitted(#[case] value: Value) {
-        let request: Request = serde_json::from_value(value).expect("valid request");
+        let request: SystemOneRequest = serde_json::from_value(value).expect("valid request");
         request
             .validate_text_only()
             .expect("empty audio is text-only");
@@ -217,7 +217,7 @@ mod tests {
                 .is_none()
         );
         assert!(
-            Request::new(request.state, request.questions)
+            SystemOneRequest::new(request.state, request.questions)
                 .audio
                 .is_empty()
         );
@@ -229,7 +229,7 @@ mod tests {
             {"samples": [0.25], "sample_rate": 16000},
             {"pcm16": [123], "sample_rate": 16000}
         ]);
-        let mut request = Request::builder()
+        let mut request = SystemOneRequest::builder()
             .state(Value::Null)
             .questions(IndexMap::new())
             .audio(serde_json::from_value(audio.clone()).expect("valid audio clips"))
@@ -242,7 +242,8 @@ mod tests {
             .expect_err("text-only models reject audio");
         let serialized = serde_json::to_value(&request).expect("serializable request");
         assert_eq!(serialized.get("audio"), Some(&audio));
-        let restored: Request = serde_json::from_value(serialized).expect("valid audio list");
+        let restored: SystemOneRequest =
+            serde_json::from_value(serialized).expect("valid audio list");
         assert_eq!(
             serde_json::to_value(restored.audio).expect("serializable clips"),
             audio
@@ -263,7 +264,7 @@ mod tests {
     #[case::minimum_budgets(Some(4), Some(16))]
     #[case::model_dependent_upper_bounds(Some(usize::MAX), Some(usize::MAX))]
     fn valid_static_budgets(#[case] max_len: Option<usize>, #[case] head_max_len: Option<usize>) {
-        let request = Request {
+        let request = SystemOneRequest {
             state: Value::String("alpha".into()),
             questions: IndexMap::new(),
             images: Vec::new(),

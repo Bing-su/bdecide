@@ -1,5 +1,5 @@
 use bdecide::hub::ModelSource;
-use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, Request};
+use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, SystemOneRequest};
 
 fn source() -> ModelSource {
     ModelSource::Local(format!("{}/../fixtures/tiny-laya", env!("CARGO_MANIFEST_DIR")).into())
@@ -9,7 +9,7 @@ fn infer(options: LoadOptions, expected_device: &Device) {
     let model =
         AutoModel::from_pretrained(options).expect("consumer backend must load the fixture");
     assert_eq!(model.metadata().device, format!("{expected_device:?}"));
-    let request: Request = serde_json::from_str(
+    let request: SystemOneRequest = serde_json::from_str(
         r#"{"state":"alpha","questions":{"q":{"type":"noul","instructions":"cancel?"}}}"#,
     )
     .expect("request fixture must be valid");

@@ -6,7 +6,7 @@ use tokenizers::Tokenizer;
 use super::configuration_laya::LayaConfig;
 use crate::models::modernbert::ModernBertConfig;
 use crate::utils::{load_tokenizer, read_checkpoint_json, render, token_ids};
-use crate::{Error, Question, Request, Result, Truncation, Usage};
+use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
 
 // Match Laya's reference head budgets; e.g. an option keeps its marker plus 48 tokens.
 const MAX_OPTION_TOKENS: usize = 48;
@@ -87,7 +87,7 @@ impl LayaProcessor {
         )
     }
 
-    pub fn process(&self, request: &Request) -> Result<Batch> {
+    pub fn process(&self, request: &SystemOneRequest) -> Result<Batch> {
         request.validate_text_only()?;
         let max_len = request.options.max_len.unwrap_or(self.max_len);
         let head_max_len = request.options.head_max_len.unwrap_or(self.head_max_len);

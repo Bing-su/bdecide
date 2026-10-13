@@ -2,7 +2,7 @@
 use std::fs;
 
 use bdecide::hub::{HubOptions, ModelSource, Token};
-use bdecide::{AutoModel, DecisionModel, Device, Error, LoadOptions, Request};
+use bdecide::{AutoModel, DecisionModel, Device, Error, LoadOptions, SystemOneRequest};
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
 use serde_json::{Value, json};
@@ -15,7 +15,7 @@ fn fixture(variant: &str) -> Utf8PathBuf {
         .join("tests/fixtures")
         .join(variant)
 }
-fn request() -> Request {
+fn request() -> SystemOneRequest {
     serde_json::from_value(
         json!({"state":"alpha", "questions":{"q":{"type":"noul","instructions":"cancel?"}}}),
     )

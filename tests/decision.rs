@@ -13,7 +13,7 @@ use bdecide::{
     Qwen3_5ForCausalLM,
     Qwen3_5TextConfig,
     Qwen3_5TextModel,
-    Request,
+    SystemOneRequest,
 };
 #[cfg(feature = "cpu")]
 use bdecide::{
@@ -191,7 +191,7 @@ fn verify(variant: &str, device: &Device, case_limit: usize) {
         .iter()
         .take(case_limit)
     {
-        let request: Request = serde_json::from_value(case["request"].clone())
+        let request: SystemOneRequest = serde_json::from_value(case["request"].clone())
             .expect("reference fixtures and predictions must be valid");
         let response = model
             .system_one(&request)
@@ -270,7 +270,7 @@ fn validates_budgets_and_reports_state_loss(#[case] variant: &str) {
         device: Some(Device::flex()),
     })
     .unwrap();
-    let mut request: Request = serde_json::from_value(json!({"state":"alpha ".repeat(1000), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
+    let mut request: SystemOneRequest = serde_json::from_value(json!({"state":"alpha ".repeat(1000), "questions":{"q":{"type":"noul","instructions":"cancel?"}}})).unwrap();
     request.options.max_len = Some(700);
     assert!(matches!(
         model.system_one(&request),
@@ -369,7 +369,7 @@ async fn hub_protocol_artifacts_stay_pinned_and_load_offline(#[case] variant: &s
     options.cache_dir = Some(Utf8Path::from_path(cache.path()).unwrap().into());
     options.subfolder = Some("nested".into());
     options.token = Token::Anonymous;
-    let request: Request = serde_json::from_value(
+    let request: SystemOneRequest = serde_json::from_value(
         json!({"state":"alpha", "questions":{"q":{"type":"noul","instructions":"cancel?"}}}),
     )
     .unwrap();

@@ -1,6 +1,6 @@
 //! Local typed decisions with reusable models and explicit loading effects.
 //!
-//! Parse a [`Request`] from JSON, load an [`AutoModel`] once, and reuse its
+//! Parse a [`SystemOneRequest`] from JSON, load an [`AutoModel`] once, and reuse its
 //! [`DecisionModel::system_one`] method for successive requests.
 
 #![recursion_limit = "256"]
@@ -33,5 +33,5 @@ pub use models::vev::VevModel;
 pub use models::von::VonModel;
 pub use models::wald::WaldModel;
 pub use models::{AutoModel, DecisionModel, Device, LoadOptions};
-pub use request::{NoulLabels, PredictOptions, Question, Request, Truncation};
-pub use response::{Action, Answer, Metadata, Response, Usage};
+pub use request::{NoulLabels, PredictOptions, Question, SystemOneRequest, Truncation};
+pub use response::{Action, Answer, Metadata, SystemOneResponse, Usage};

@@ -7,7 +7,7 @@ use super::processing_d1::Processor;
 use super::readout::{answer, values};
 use crate::hub::{self, ModelSource};
 use crate::models::lfm2_vl::{Lfm2VlForConditionalGeneration, vision};
-use crate::{DecisionModel, Error, Metadata, Request, Response, Result, Usage};
+use crate::{DecisionModel, Error, Metadata, Result, SystemOneRequest, SystemOneResponse, Usage};
 
 /// D1-3B's decision API over LFM2-VL, e.g. text and image requests.
 pub struct D1Model {
@@ -45,7 +45,7 @@ impl DecisionModel for D1Model {
         &self.metadata
     }
 
-    fn system_one(&self, request: &Request) -> Result<Response> {
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         let limit = self.processor.validate(
             self.network
                 .model
@@ -86,7 +86,7 @@ impl DecisionModel for D1Model {
                 .collect::<Vec<_>>();
             answers.insert(id.clone(), answer(q, &pooled, 0)?);
         }
-        Ok(Response {
+        Ok(SystemOneResponse {
             model: self.metadata.model_id.clone(),
             answers,
             usage,
