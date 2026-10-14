@@ -34,7 +34,7 @@ impl LoadOptions {
 
 /// Load a supported architecture from its artifacts, independent of repo names.
 pub struct AutoModel {
-    model: Box<dyn DecisionModel>,
+    model: Box<dyn DecisionModel + Sync>,
 }
 #[bon]
 impl AutoModel {
@@ -74,7 +74,7 @@ impl AutoModel {
     }
 
     fn load(root: &Utf8Path, device: &Device, metadata: Metadata, family: Family) -> Result<Self> {
-        let model: Box<dyn DecisionModel> = match family {
+        let model: Box<dyn DecisionModel + Sync> = match family {
             Family::Laya => Box::new(LayaModel::load(root, device, metadata)?),
             Family::Clef => Box::new(ClefModel::load(root, device, metadata)?),
             Family::Vev => Box::new(VevModel::load(root, device, metadata)?),
@@ -89,6 +89,13 @@ impl AutoModel {
 }
 
 impl DecisionModel for AutoModel {
+    fn system_one_batch(&self, requests: &[SystemOneRequest]) -> Result<Vec<SystemOneResponse>> {
+        // Preserve model-specific batching and recover backend failures, e.g. device loss.
+        catch_unwind(AssertUnwindSafe(|| self.model.system_one_batch(requests))).map_err(
+            |_panic| Error::Inference("Burn backend failed while executing the batch".into()),
+        )?
+    }
+
     fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         // Backend errors may be panics (e.g. device loss). Keep JSONL processing
         // recoverable instead of letting one backend failure terminate the CLI.

@@ -9,6 +9,32 @@ re-exports `burn::tensor::Device` and works with both direct loaders and `AutoMo
 The CLI retains its `cpu`, `wgpu`, and `auto` selections.
 Model metadata reports the Burn device's debug representation, e.g. `format!("{device:?}")`.
 
+`DecisionModel::system_one_batch(&[SystemOneRequest])` returns
+`Result<Vec<SystemOneResponse>>` in input order and reuses the loaded weights.
+
+| Batch behavior | Contract |
+| --- | --- |
+| Laya | Combine every request's questions into one padded Burn tensor batch and forward pass |
+| Other built-in models | Run requests on explicit Burn streams with up to four workers; a single request reuses `system_one` |
+| Empty input | Return an empty vector |
+| Failed request | Return an error for the batch; wait for started workers before returning |
+| Usage and answers | Preserve each request's accounting and question order |
+| Custom implementations | Batch calls require `Sync`; existing single-request implementations remain valid |
+
+```rust,ignore
+use bdecide::DecisionModel;
+
+// Reuse loaded weights across independent states, e.g. two customer records.
+let responses = model.system_one_batch(&[first_request, second_request])?;
+```
+
+The default implementation uses `burn_std::stream::Stream::enter` on scoped
+workers. Burn/CubeCL schedules these streams; CUDA/ROCm can overlap kernels,
+while WGPU interleaves submissions. See [Burn's multi-stream explanation](https://tracel.ai/blog/release-0.19.0/).
+Actual speedup depends on backend, request sizes and available memory.
+Concurrent requests use more activation memory, and Laya pads to the longest
+question in the supplied batch; callers should keep batches within their device budget.
+
 | `LoadOptions.device`   | Behavior                                                                            |
 | ---------------------- | ----------------------------------------------------------------------------------- |
 | `Some(device)`         | Use the supplied Burn device without replacing it or falling back                   |
@@ -143,7 +169,8 @@ Context and Omni instruction/option truncation remain opt-in through
 `"options":{"truncation":"truncate"}` or `--truncate`; usage records
 lost tokens. Each question is evaluated independently with shared media
 embeddings, and `input_tokens` counts the complete sequences actually read.
-The upstream packed-tree and batch optimizations are not implemented.
+The upstream packed-tree and tensor batch optimizations for D1 are not implemented;
+`system_one_batch` uses independent Burn streams for these models.
 
 The small fixtures use Transformers weight names and compare text, multiple/tiled
 images, PCM/WAV audio, calibration and truncation against pinned LiquidAI Python

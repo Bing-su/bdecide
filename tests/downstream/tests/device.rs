@@ -19,6 +19,18 @@ fn infer(options: LoadOptions, expected_device: &Device) {
     assert_eq!(response.metadata.device, format!("{expected_device:?}"));
     assert_eq!(response.answers.len(), 1);
     assert!(response.usage.input_tokens > 0);
+    // Exercise the public batch method under consumer-only backends, e.g. NdArray.
+    let expected = serde_json::to_value(&response).expect("response JSON");
+    let batch = model
+        .system_one_batch(&[request.clone(), request])
+        .expect("consumer batch inference");
+    assert_eq!(batch.len(), 2);
+    for response in batch {
+        assert_eq!(
+            serde_json::to_value(response).expect("response JSON"),
+            expected
+        );
+    }
 }
 
 #[test]

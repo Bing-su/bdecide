@@ -177,15 +177,20 @@ impl LayaModel {
             .collect();
         Ok(RawOutput { logits, actions })
     }
-}
-impl DecisionModel for LayaModel {
-    fn metadata(&self) -> &Metadata {
-        &self.metadata
-    }
 
-    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
-        let batch = self.processor.process(request)?;
-        let raw = self.forward(&batch)?;
+    fn response(
+        &self,
+        request: &SystemOneRequest,
+        usage: crate::Usage,
+        raw: RawOutput,
+    ) -> Result<SystemOneResponse> {
+        if raw.logits.len() != request.questions.len()
+            || raw.actions.len() != request.questions.len()
+        {
+            return Err(Error::Inference(
+                "Laya output count does not match questions".into(),
+            ));
+        }
         let mut answers = IndexMap::new();
         for ((id, question), logits, action) in
             itertools::izip!(&request.questions, raw.logits, raw.actions)
@@ -199,9 +204,52 @@ impl DecisionModel for LayaModel {
         Ok(SystemOneResponse {
             model: "laya-rl-agent".into(),
             answers,
-            usage: batch.usage,
+            usage,
             metadata: self.metadata.clone(),
         })
+    }
+}
+impl DecisionModel for LayaModel {
+    fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
+        let batch = self.processor.process(request)?;
+        let raw = self.forward(&batch)?;
+        self.response(request, batch.usage, raw)
+    }
+
+    fn system_one_batch(&self, requests: &[SystemOneRequest]) -> Result<Vec<SystemOneResponse>> {
+        let mut combined = Batch {
+            rows: Vec::new(),
+            usage: Default::default(),
+        };
+        let mut usages = Vec::with_capacity(requests.len());
+        for request in requests {
+            let batch = self.processor.process(request)?;
+            combined.rows.extend(batch.rows);
+            usages.push(batch.usage);
+        }
+        // Use Burn's batch dimension once for all questions, e.g. mixed request lengths.
+        let raw = self.forward(&combined)?;
+        let mut logits = raw.logits.into_iter();
+        let mut actions = raw.actions.into_iter();
+        requests
+            .iter()
+            .zip(usages)
+            .map(|(request, usage)| {
+                let count = request.questions.len();
+                self.response(
+                    request,
+                    usage,
+                    RawOutput {
+                        logits: logits.by_ref().take(count).collect(),
+                        actions: actions.by_ref().take(count).collect(),
+                    },
+                )
+            })
+            .collect()
     }
 }
 
