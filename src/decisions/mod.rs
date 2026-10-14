@@ -1,28 +1,26 @@
 //! OpenAI Decisions JSON types and a text adapter for local System One models.
 mod adapter;
+mod answer;
+mod input;
+mod question;
 mod request;
 mod response;
 
-pub use request::{
-    DecisionChoice,
-    DecisionChoiceValue,
+pub use answer::{DecisionAnswer, DecisionChoiceProbability, DecisionScoreProbability};
+pub use input::{
     DecisionInput,
     DecisionInputContent,
     DecisionInputMessage,
     DecisionInputPart,
-    DecisionLevel,
-    DecisionQuestion,
-    DecisionsRequest,
     ImageDetail,
     MessageType,
     UserRole,
 };
+pub use question::{DecisionChoice, DecisionChoiceValue, DecisionLevel, DecisionQuestion};
+pub use request::DecisionsRequest;
 pub use response::{
-    DecisionAnswer,
-    DecisionChoiceProbability,
     DecisionInputTokensDetails,
     DecisionOutputTokensDetails,
-    DecisionScoreProbability,
     DecisionsResponse,
     DecisionsUsage,
 };

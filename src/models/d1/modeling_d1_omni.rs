@@ -29,8 +29,8 @@ use crate::{
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
     Usage,
@@ -148,9 +148,9 @@ impl DecisionModel for D1OmniModel {
             let mut logits = values(self.network.head.forward(h, &row, &self.device))?;
             if media.is_none() {
                 let kind = match q {
-                    Question::Choice { .. } => "choice",
-                    Question::Score { .. } => "score",
-                    Question::Noul { .. } => "noul",
+                    SystemOneQuestion::Choice { .. } => "choice",
+                    SystemOneQuestion::Score { .. } => "score",
+                    SystemOneQuestion::Noul { .. } => "noul",
                 };
                 let bucket = match logits.len() {
                     0..=2 => "2",

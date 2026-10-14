@@ -13,8 +13,8 @@ use crate::{
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
     Usage,
@@ -87,7 +87,7 @@ impl WaldModel {
     fn read(
         &self,
         state: &str,
-        question: &Question,
+        question: &SystemOneQuestion,
         options: &[String],
         request: &SystemOneRequest,
         id: &str,
@@ -117,7 +117,7 @@ impl WaldModel {
     fn wide_read(
         &self,
         state: &str,
-        question: &Question,
+        question: &SystemOneQuestion,
         options: &[String],
         request: &SystemOneRequest,
         id: &str,
@@ -178,8 +178,8 @@ impl DecisionModel for WaldModel {
     fn system_one(&self, request: &SystemOneRequest) -> Result<SystemOneResponse> {
         self.readout.validate(request)?;
         for question in request.questions.values() {
-            if matches!(question, Question::Choice { criteria, .. } if criteria.len() > 255)
-                || matches!(question, Question::Score { criteria, .. } if criteria.len() > 255)
+            if matches!(question, SystemOneQuestion::Choice { criteria, .. } if criteria.len() > 255)
+                || matches!(question, SystemOneQuestion::Score { criteria, .. } if criteria.len() > 255)
             {
                 return Err(Error::InvalidRequest(
                     "Wald supports at most 255 options per question".into(),
@@ -194,14 +194,14 @@ impl DecisionModel for WaldModel {
         let mut answers = IndexMap::new();
         for (id, question) in &request.questions {
             let options = match question {
-                Question::Choice { criteria, .. } => criteria
+                SystemOneQuestion::Choice { criteria, .. } => criteria
                     .iter()
                     .map(|(key, value)| option_text(key, Some(value)))
                     .collect(),
-                Question::Score { criteria, .. } => {
+                SystemOneQuestion::Score { criteria, .. } => {
                     criteria.iter().map(|value| render(value, 0)).collect()
                 }
-                Question::Noul { criteria, .. } => vec![
+                SystemOneQuestion::Noul { criteria, .. } => vec![
                     option_text("no", criteria.get("false")),
                     option_text("yes", criteria.get("true")),
                 ],
@@ -219,12 +219,12 @@ impl DecisionModel for WaldModel {
                         .collect::<Vec<_>>(),
                 )?
             };
-            let confidence = if matches!(question, Question::Choice { .. }) {
+            let confidence = if matches!(question, SystemOneQuestion::Choice { .. }) {
                 choice_confidence(&probabilities)
             } else {
                 probabilities.iter().copied().fold(0.0, f64::max)
             };
-            let legend = if matches!(question, Question::Score { .. }) {
+            let legend = if matches!(question, SystemOneQuestion::Score { .. }) {
                 options
             } else {
                 Vec::new()

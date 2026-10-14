@@ -10,8 +10,7 @@ mod error;
 pub mod hub;
 mod media;
 pub mod models;
-mod request;
-mod response;
+pub mod system_one;
 mod utils;
 
 pub use decisions::{DecisionsRequest, DecisionsResponse};
@@ -35,5 +34,15 @@ pub use models::vev::VevModel;
 pub use models::von::VonModel;
 pub use models::wald::WaldModel;
 pub use models::{AutoModel, DecisionModel, Device, LoadOptions};
-pub use request::{NoulLabels, PredictOptions, Question, SystemOneRequest, Truncation};
-pub use response::{Action, Answer, Metadata, SystemOneResponse, Usage};
+pub use system_one::{
+    Action,
+    Metadata,
+    NoulLabels,
+    PredictOptions,
+    SystemOneAnswer,
+    SystemOneQuestion,
+    SystemOneRequest,
+    SystemOneResponse,
+    Truncation,
+    Usage,
+};

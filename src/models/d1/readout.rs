@@ -3,7 +3,7 @@ use burn::tensor::Tensor;
 
 use crate::utils::decision::{self, softmax};
 use crate::utils::render;
-use crate::{Answer, Error, Question, Result};
+use crate::{Error, Result, SystemOneAnswer, SystemOneQuestion};
 
 pub(super) fn values(tensor: Tensor<3>) -> Result<Vec<f64>> {
     tensor
@@ -12,10 +12,14 @@ pub(super) fn values(tensor: Tensor<3>) -> Result<Vec<f64>> {
         .map_err(|error| Error::Inference(error.to_string()))
 }
 
-pub(super) fn answer(q: &Question, logits: &[f64], true_index: usize) -> Result<Answer> {
+pub(super) fn answer(
+    q: &SystemOneQuestion,
+    logits: &[f64],
+    true_index: usize,
+) -> Result<SystemOneAnswer> {
     let probabilities = softmax(logits)?;
     let confidence = probabilities.iter().copied().fold(0.0, f64::max);
-    let legend = if let Question::Score { criteria, .. } = q {
+    let legend = if let SystemOneQuestion::Score { criteria, .. } = q {
         criteria.iter().map(render).collect::<Result<Vec<_>>>()?
     } else {
         Vec::new()

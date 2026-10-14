@@ -2,7 +2,7 @@
 #[cfg(feature = "cpu")]
 use bdecide::Error;
 use bdecide::hub::ModelSource;
-use bdecide::{Answer, AutoModel, DecisionModel, Device, LoadOptions, SystemOneRequest};
+use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, SystemOneAnswer, SystemOneRequest};
 use burn::tensor::Device as BurnDevice;
 use camino::{Utf8Path, Utf8PathBuf};
 use rstest::rstest;
@@ -70,11 +70,11 @@ fn parity(device: Device, kind: &str, case_index: usize) {
             );
         };
         match answer {
-            Answer::Noul { noul, .. } => check(
+            SystemOneAnswer::Noul { noul, .. } => check(
                 noul,
                 expected["noul"].as_f64().expect("valid reference fixture"),
             ),
-            Answer::Choice {
+            SystemOneAnswer::Choice {
                 choice,
                 probabilities,
                 ..
@@ -94,7 +94,7 @@ fn parity(device: Device, kind: &str, case_index: usize) {
                     );
                 }
             }
-            Answer::Score {
+            SystemOneAnswer::Score {
                 score,
                 probabilities,
                 ..

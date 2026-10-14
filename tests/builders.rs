@@ -2,7 +2,6 @@ use bdecide::hub::{HubOptions, HubOptionsBuilder, ModelSource, Token};
 use bdecide::models::clef::{EncodedQuestion, EncodedRecord};
 use bdecide::{
     Action,
-    Answer,
     ClefConfig,
     Error,
     LayaConfig,
@@ -11,9 +10,10 @@ use bdecide::{
     ModernBertConfig,
     NoulLabels,
     PredictOptions,
-    Question,
     Qwen3_5Config,
     Qwen3_5TextConfig,
+    SystemOneAnswer,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
     Truncation,
@@ -30,7 +30,7 @@ fn request_builders_preserve_defaults_and_question_order() {
         .map(|id| {
             (
                 id.into(),
-                Question::Noul {
+                SystemOneQuestion::Noul {
                     instructions: "cancel?".into(),
                     criteria: IndexMap::new(),
                     labels: NoulLabels::new(),
@@ -153,7 +153,7 @@ fn response_and_encoded_record_builders_preserve_payloads() {
     );
     let answers = IndexMap::from([(
         "q".into(),
-        Answer::Noul {
+        SystemOneAnswer::Noul {
             noul: 0.9,
             confidence: 0.9,
             answer_confidence: 0.9,

@@ -9,7 +9,7 @@ use tokenizers::Tokenizer;
 use super::{Qwen3_5ForCausalLM, Qwen3_5TextConfig};
 use crate::utils::decision::softmax;
 use crate::utils::{load_tokenizer, token_ids, tokenize};
-use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
+use crate::{Error, Result, SystemOneQuestion, SystemOneRequest, Truncation, Usage};
 
 pub(crate) struct Readout {
     pub(crate) model: Qwen3_5ForCausalLM,
@@ -51,7 +51,7 @@ impl Readout {
             ));
         }
         for question in request.questions.values() {
-            if let Question::Noul { labels, .. } = question
+            if let SystemOneQuestion::Noul { labels, .. } = question
                 && (labels.r#true != "true" || labels.r#false != "false")
             {
                 return Err(Error::InvalidRequest(

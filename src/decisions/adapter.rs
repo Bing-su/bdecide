@@ -13,7 +13,15 @@ use super::{
     DecisionsResponse,
     DecisionsUsage,
 };
-use crate::{Answer, Error, NoulLabels, Question, Result, SystemOneRequest, SystemOneResponse};
+use crate::{
+    Error,
+    NoulLabels,
+    Result,
+    SystemOneAnswer,
+    SystemOneQuestion,
+    SystemOneRequest,
+    SystemOneResponse,
+};
 
 impl DecisionsRequest {
     /// Validate without loading a model, e.g. reject duplicate typed choices before model I/O.
@@ -110,9 +118,9 @@ impl DecisionsRequest {
 }
 
 impl DecisionQuestion {
-    fn to_system_one(&self) -> Result<Question> {
+    fn to_system_one(&self) -> Result<SystemOneQuestion> {
         Ok(match self {
-            Self::Predicate { instructions, .. } => Question::Noul {
+            Self::Predicate { instructions, .. } => SystemOneQuestion::Noul {
                 instructions: instructions.clone(),
                 criteria: IndexMap::new(),
                 labels: NoulLabels::default(),
@@ -136,7 +144,7 @@ impl DecisionQuestion {
                         return Err(Error::InvalidRequest("choice values must be unique".into()));
                     }
                 }
-                Question::Choice {
+                SystemOneQuestion::Choice {
                     instructions: instructions.clone(),
                     criteria,
                 }
@@ -145,7 +153,7 @@ impl DecisionQuestion {
                 instructions,
                 levels,
                 ..
-            } => Question::Score {
+            } => SystemOneQuestion::Score {
                 instructions: instructions.clone(),
                 // Render levels as text so model-specific object schemas cannot drop labels/descriptions.
                 criteria: levels
@@ -156,9 +164,9 @@ impl DecisionQuestion {
         })
     }
 
-    fn decode(&self, answer: &Answer) -> Result<DecisionAnswer> {
+    fn decode(&self, answer: &SystemOneAnswer) -> Result<DecisionAnswer> {
         Ok(match (self, answer) {
-            (Self::Predicate { name, .. }, Answer::Noul { noul, .. }) => {
+            (Self::Predicate { name, .. }, SystemOneAnswer::Noul { noul, .. }) => {
                 DecisionAnswer::Predicate {
                     name: name.clone(),
                     probability: *noul,
@@ -166,7 +174,7 @@ impl DecisionQuestion {
             }
             (
                 Self::Choice { name, choices, .. },
-                Answer::Choice {
+                SystemOneAnswer::Choice {
                     choice,
                     probabilities,
                     confidence,
@@ -198,7 +206,7 @@ impl DecisionQuestion {
             }
             (
                 Self::Score { name, levels, .. },
-                Answer::Score {
+                SystemOneAnswer::Score {
                     score,
                     probabilities,
                     confidence,

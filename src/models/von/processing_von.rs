@@ -5,7 +5,7 @@ use serde_json::Value;
 use tokenizers::Tokenizer;
 
 use crate::utils::{render, token_ids};
-use crate::{Error, Question, Result};
+use crate::{Error, Result, SystemOneQuestion};
 
 #[derive(Deserialize)]
 pub(super) struct SpecialTokens {
@@ -45,9 +45,9 @@ pub(super) fn state(value: &Value) -> Result<String> {
         render(value)
     }
 }
-pub(super) fn descriptions(question: &Question) -> Result<Vec<String>> {
+pub(super) fn descriptions(question: &SystemOneQuestion) -> Result<Vec<String>> {
     match question {
-        Question::Choice { criteria, .. } => criteria
+        SystemOneQuestion::Choice { criteria, .. } => criteria
             .iter()
             .map(|(key, value)| match value {
                 Value::Null => Ok(key.trim().into()),
@@ -55,7 +55,7 @@ pub(super) fn descriptions(question: &Question) -> Result<Vec<String>> {
                 _ => Ok(render(value)?.trim().into()),
             })
             .collect(),
-        Question::Noul { criteria, .. } => [
+        SystemOneQuestion::Noul { criteria, .. } => [
             ("true", "Yes, condition holds true."),
             ("false", "No, condition is false."),
         ]
@@ -66,7 +66,7 @@ pub(super) fn descriptions(question: &Question) -> Result<Vec<String>> {
             Some(value) => render(value),
         })
         .collect(),
-        Question::Score { criteria, .. } => criteria
+        SystemOneQuestion::Score { criteria, .. } => criteria
             .iter()
             .map(|value| {
                 if let Value::Object(fields) = value {

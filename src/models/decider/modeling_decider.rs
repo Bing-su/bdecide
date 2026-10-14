@@ -13,8 +13,8 @@ use crate::{
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
     Truncation,
@@ -177,11 +177,11 @@ impl DecisionModel for DeciderModel {
         self.readout.validate(request)?;
         for question in request.questions.values() {
             let valid = match question {
-                Question::Choice { criteria, .. } => {
+                SystemOneQuestion::Choice { criteria, .. } => {
                     (2..=self.config.max_options).contains(&criteria.len())
                 }
-                Question::Score { criteria, .. } => (2..=10).contains(&criteria.len()),
-                Question::Noul { .. } => true,
+                SystemOneQuestion::Score { criteria, .. } => (2..=10).contains(&criteria.len()),
+                SystemOneQuestion::Noul { .. } => true,
             };
             if !valid {
                 return Err(Error::InvalidRequest(
@@ -196,65 +196,66 @@ impl DecisionModel for DeciderModel {
         };
         let mut answers = IndexMap::new();
         for (id, question) in &request.questions {
-            let legend = if let Question::Score { criteria, .. } = question {
+            let legend = if let SystemOneQuestion::Score { criteria, .. } = question {
                 criteria.iter().map(render).collect::<Result<Vec<_>>>()?
             } else {
                 Vec::new()
             };
             let temperature = self.config.temperature(question);
-            let probabilities =
-                if self.config.isolated_levels && matches!(question, Question::Score { .. }) {
-                    let mut fit = Vec::new();
-                    for level in &legend {
-                        let instructions = format!(
-                            "{}\nProposed answer: {}\nDoes the proposed answer fit?",
-                            question.instructions(),
-                            strip_level(level)?
-                        );
-                        let row = self.read(
-                            &context,
-                            (&instructions, &["no".into(), "yes".into()]),
-                            temperature,
-                            request,
-                            id,
-                            &mut usage,
-                        )?;
-                        fit.push(
-                            *row.get(1)
-                                .ok_or_else(|| Error::Inference("missing level fit".into()))?,
-                        );
-                    }
-                    let sum = fit.iter().sum::<f64>();
-                    let sum = if sum > 0.0 { sum } else { 1e-9 };
-                    fit.into_iter().map(|value| value / sum).collect()
-                } else {
-                    let options = match question {
-                        Question::Choice { criteria, .. } => criteria
-                            .iter()
-                            .map(|(name, desc)| option(name, Some(desc)))
-                            .collect::<Result<Vec<_>>>()?,
-                        Question::Score { .. } => legend
-                            .iter()
-                            .enumerate()
-                            .map(|(i, text)| format!("{i}: {text}"))
-                            .collect(),
-                        Question::Noul { criteria, .. } => vec![
-                            option("no", criteria.get("false"))?,
-                            option("yes", criteria.get("true"))?,
-                        ],
-                    };
-                    self.read(
+            let probabilities = if self.config.isolated_levels
+                && matches!(question, SystemOneQuestion::Score { .. })
+            {
+                let mut fit = Vec::new();
+                for level in &legend {
+                    let instructions = format!(
+                        "{}\nProposed answer: {}\nDoes the proposed answer fit?",
+                        question.instructions(),
+                        strip_level(level)?
+                    );
+                    let row = self.read(
                         &context,
-                        (question.instructions(), &options),
+                        (&instructions, &["no".into(), "yes".into()]),
                         temperature,
                         request,
                         id,
                         &mut usage,
-                    )?
+                    )?;
+                    fit.push(
+                        *row.get(1)
+                            .ok_or_else(|| Error::Inference("missing level fit".into()))?,
+                    );
+                }
+                let sum = fit.iter().sum::<f64>();
+                let sum = if sum > 0.0 { sum } else { 1e-9 };
+                fit.into_iter().map(|value| value / sum).collect()
+            } else {
+                let options = match question {
+                    SystemOneQuestion::Choice { criteria, .. } => criteria
+                        .iter()
+                        .map(|(name, desc)| option(name, Some(desc)))
+                        .collect::<Result<Vec<_>>>()?,
+                    SystemOneQuestion::Score { .. } => legend
+                        .iter()
+                        .enumerate()
+                        .map(|(i, text)| format!("{i}: {text}"))
+                        .collect(),
+                    SystemOneQuestion::Noul { criteria, .. } => vec![
+                        option("no", criteria.get("false"))?,
+                        option("yes", criteria.get("true"))?,
+                    ],
                 };
+                self.read(
+                    &context,
+                    (question.instructions(), &options),
+                    temperature,
+                    request,
+                    id,
+                    &mut usage,
+                )?
+            };
             let confidence = match question {
-                Question::Choice { .. } => choice_confidence(&probabilities),
-                Question::Score { .. } => {
+                SystemOneQuestion::Choice { .. } => choice_confidence(&probabilities),
+                SystemOneQuestion::Score { .. } => {
                     let best = argmax(&probabilities);
                     let n = probabilities.len() as f64;
                     let spread: f64 = probabilities
@@ -268,7 +269,7 @@ impl DecisionModel for DeciderModel {
                         / n;
                     (1.0 - spread / uniform).clamp(0.0, 1.0)
                 }
-                Question::Noul { .. } => probabilities.iter().copied().fold(0.0, f64::max),
+                SystemOneQuestion::Noul { .. } => probabilities.iter().copied().fold(0.0, f64::max),
             };
             answers.insert(
                 id.clone(),

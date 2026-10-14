@@ -3,6 +3,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::SystemOneQuestion;
 use crate::media::{AudioInput, ImageInput};
 use crate::{Error, Result};
 
@@ -10,8 +11,10 @@ use crate::{Error, Result};
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(deny_unknown_fields)]
 pub struct SystemOneRequest {
+    #[builder(into)]
     pub state: Value,
-    pub questions: IndexMap<String, Question>,
+    #[builder(default)]
+    pub questions: IndexMap<String, SystemOneQuestion>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[builder(default)]
     pub images: Vec<ImageInput>,
@@ -22,49 +25,6 @@ pub struct SystemOneRequest {
     #[serde(default)]
     #[builder(default)]
     pub options: PredictOptions,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase", deny_unknown_fields)]
-pub enum Question {
-    Choice {
-        instructions: String,
-        criteria: IndexMap<String, Value>,
-    },
-    Score {
-        instructions: String,
-        criteria: Vec<Value>,
-    },
-    Noul {
-        instructions: String,
-        #[serde(default)]
-        criteria: IndexMap<String, Value>,
-        #[serde(default)]
-        labels: NoulLabels,
-    },
-}
-
-/// Labels change the prompt text; the returned probability always means true.
-#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
-#[serde(deny_unknown_fields)]
-pub struct NoulLabels {
-    #[builder(default = "false", into)]
-    pub r#false: String,
-    #[builder(default = "true", into)]
-    pub r#true: String,
-}
-
-impl NoulLabels {
-    /// Use the standard boolean labels, e.g. `NoulLabels::new()`.
-    pub fn new() -> Self {
-        Self::builder().build()
-    }
-}
-
-impl Default for NoulLabels {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,8 +54,44 @@ impl PredictOptions {
 
 impl SystemOneRequest {
     /// Preserve ordered questions with default options, e.g. `SystemOneRequest::new(state, questions)`.
-    pub fn new(state: Value, questions: IndexMap<String, Question>) -> Self {
+    pub fn new(state: impl Into<Value>, questions: IndexMap<String, SystemOneQuestion>) -> Self {
         Self::builder().state(state).questions(questions).build()
+    }
+
+    /// Insert a question by ID, e.g. `.question("cancel", SystemOneQuestion::noul("cancel?"))`.
+    /// Reusing an ID replaces its question without changing insertion order.
+    #[must_use]
+    pub fn question(mut self, id: impl Into<String>, question: SystemOneQuestion) -> Self {
+        self.questions.insert(id.into(), question);
+        self
+    }
+
+    /// Insert a boolean question with default labels, e.g. `.noul("cancel", "cancel?")`.
+    #[must_use]
+    pub fn noul(self, id: impl Into<String>, instructions: impl Into<String>) -> Self {
+        self.question(id, SystemOneQuestion::noul(instructions))
+    }
+
+    /// Insert ordered choice IDs and descriptions, e.g. `.choice("route", "Route", [("billing", "Payments")])`.
+    #[must_use]
+    pub fn choice(
+        self,
+        id: impl Into<String>,
+        instructions: impl Into<String>,
+        criteria: impl IntoIterator<Item = (impl Into<String>, impl Into<Value>)>,
+    ) -> Self {
+        self.question(id, SystemOneQuestion::choice(instructions, criteria))
+    }
+
+    /// Insert ordered score levels, e.g. `.score("severity", "Rate", ["low", "high"])`.
+    #[must_use]
+    pub fn score(
+        self,
+        id: impl Into<String>,
+        instructions: impl Into<String>,
+        criteria: impl IntoIterator<Item = impl Into<Value>>,
+    ) -> Self {
+        self.question(id, SystemOneQuestion::score(instructions, criteria))
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -151,47 +147,6 @@ impl SystemOneRequest {
             return Err(Error::InvalidRequest("this model accepts text only".into()));
         }
         Ok(())
-    }
-}
-
-impl Question {
-    pub(crate) fn instructions(&self) -> &str {
-        match self {
-            Self::Choice { instructions, .. }
-            | Self::Score { instructions, .. }
-            | Self::Noul { instructions, .. } => instructions,
-        }
-    }
-
-    fn validate(&self) -> std::result::Result<(), String> {
-        if self.instructions().trim().is_empty() {
-            return Err("instructions must not be empty".into());
-        }
-        match self {
-            Self::Choice { criteria, .. } if criteria.is_empty() => {
-                Err("choice needs at least one option".into())
-            }
-            Self::Score { criteria, .. }
-                if criteria.is_empty() || criteria.iter().any(Value::is_null) =>
-            {
-                Err("score needs non-null ordered levels".into())
-            }
-            Self::Noul {
-                criteria, labels, ..
-            } => {
-                if criteria.keys().any(|k| k != "false" && k != "true") {
-                    return Err("noul criteria only accept false and true".into());
-                }
-                if labels.r#false.trim().is_empty()
-                    || labels.r#true.trim().is_empty()
-                    || labels.r#false.trim() == labels.r#true.trim()
-                {
-                    return Err("noul labels must be distinct non-empty strings".into());
-                }
-                Ok(())
-            }
-            _ => Ok(()),
-        }
     }
 }
 

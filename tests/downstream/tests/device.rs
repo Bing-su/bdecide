@@ -1,5 +1,14 @@
 use bdecide::hub::ModelSource;
-use bdecide::{AutoModel, DecisionModel, DecisionsRequest, Device, LoadOptions, SystemOneRequest};
+use bdecide::{
+    AutoModel,
+    DecisionModel,
+    DecisionsRequest,
+    Device,
+    LoadOptions,
+    SystemOneAnswer,
+    SystemOneQuestion,
+    SystemOneRequest,
+};
 
 fn source() -> ModelSource {
     ModelSource::Local(format!("{}/../fixtures/tiny-laya", env!("CARGO_MANIFEST_DIR")).into())
@@ -9,16 +18,21 @@ fn infer(options: LoadOptions, expected_device: &Device) {
     let model =
         AutoModel::from_pretrained(options).expect("consumer backend must load the fixture");
     assert_eq!(model.metadata().device, format!("{expected_device:?}"));
-    let request: SystemOneRequest = serde_json::from_str(
-        r#"{"state":"alpha","questions":{"q":{"type":"noul","instructions":"cancel?"}}}"#,
-    )
-    .expect("request fixture must be valid");
+    let request = SystemOneRequest::builder()
+        .state("alpha")
+        .build()
+        .question("q", SystemOneQuestion::noul("cancel?"));
     let response = model
         .system_one(&request)
         .expect("consumer backend must execute the request");
     assert_eq!(response.metadata.device, format!("{expected_device:?}"));
     assert_eq!(response.answers.len(), 1);
     assert!(response.usage.input_tokens > 0);
+    let probability = response.noul("q").expect("System One Noul helper");
+    assert!((0.0..=1.0).contains(&probability));
+    // Use renamed public types from an external crate, e.g. borrow a Noul answer.
+    let answer: &SystemOneAnswer = response.answer("q").expect("System One answer");
+    assert_eq!(answer.noul(), response.noul("q"));
     // Exercise the Decisions adapter through the public trait object on consumer-only backends.
     let decisions =
         DecisionsRequest::new(&model.metadata().model_id, "alpha").predicate("q", "cancel?");

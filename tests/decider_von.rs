@@ -35,7 +35,7 @@ fn compare(actual: &Value, expected: &Value) {
     match expected {
         Value::Object(fields) => {
             for (key, value) in fields {
-                // Upstream-only diagnostics do not belong to bdecide's common Answer schema,
+                // Upstream-only diagnostics do not belong to bdecide's common SystemOneAnswer schema,
                 // e.g. Decider's per-level fit mass and Von's auxiliary noul_raw.
                 if matches!(
                     key.as_str(),
@@ -178,7 +178,7 @@ fn direct_loader_and_independent_questions(#[case] name: &str) {
 #[cfg(feature = "cpu")]
 #[test]
 fn von_options_are_order_invariant() {
-    use bdecide::Question;
+    use bdecide::SystemOneQuestion;
     let model = load("tiny-von", Device::flex());
     let mut request: SystemOneRequest =
         serde_json::from_value(reference("tiny-von")["cases"][0]["request"].clone())
@@ -191,7 +191,7 @@ fn von_options_are_order_invariant() {
             .answers,
     )
     .expect("reference fixture and prediction must be valid");
-    if let Some(Question::Choice { criteria, .. }) = request.questions.get_mut("choice") {
+    if let Some(SystemOneQuestion::Choice { criteria, .. }) = request.questions.get_mut("choice") {
         criteria.reverse();
     }
     let after = serde_json::to_value(
@@ -241,7 +241,7 @@ fn decider_score_preserves_levels_with_small_choice_limit() {
     ));
     request.questions.retain(|id, _| id == "score");
     let response = model.system_one(&request).unwrap();
-    let bdecide::Answer::Score {
+    let bdecide::SystemOneAnswer::Score {
         probabilities,
         legend,
         ..

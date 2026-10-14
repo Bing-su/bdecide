@@ -2,7 +2,7 @@
 use indexmap::IndexMap;
 use serde::Deserialize;
 
-use crate::{Error, Question, Result};
+use crate::{Error, Result, SystemOneQuestion};
 
 #[derive(Deserialize)]
 pub(crate) struct DeciderConfig {
@@ -67,11 +67,11 @@ impl DeciderConfig {
         Ok(())
     }
 
-    pub(super) fn temperature(&self, question: &Question) -> f64 {
+    pub(super) fn temperature(&self, question: &SystemOneQuestion) -> f64 {
         let kind = match question {
-            Question::Choice { .. } => "choice",
-            Question::Score { .. } => "score",
-            Question::Noul { .. } => "noul",
+            SystemOneQuestion::Choice { .. } => "choice",
+            SystemOneQuestion::Score { .. } => "score",
+            SystemOneQuestion::Noul { .. } => "noul",
         };
         self.temperature_by_type
             .get(kind)

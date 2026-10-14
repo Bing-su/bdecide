@@ -7,7 +7,7 @@ use tokenizers::Tokenizer;
 
 use super::super::qwen3_5::Qwen3_5Config;
 use crate::utils::{load_tokenizer, render, token_ids};
-use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
+use crate::{Error, Result, SystemOneQuestion, SystemOneRequest, Truncation, Usage};
 
 const SYSTEM_PROMPT: &str = "Read the complete state and schema. Decide every field jointly. Each answer must be exactly one of that field's allowed options.";
 
@@ -112,14 +112,14 @@ impl ClefProcessor {
         let mut questions = Vec::new();
         for (index, (id, question)) in request.questions.iter().enumerate() {
             let (kind, question_type) = match question {
-                Question::Noul { labels, .. } => {
+                SystemOneQuestion::Noul { labels, .. } => {
                     if labels.r#true != "true" || labels.r#false != "false" {
                         return Err(Error::InvalidRequest("Clef uses fixed true/false option IDs; customize noul criteria instead of labels".into()));
                     }
                     ("noul", 0)
                 }
-                Question::Choice { .. } => ("choice", 1),
-                Question::Score { .. } => ("score", 2),
+                SystemOneQuestion::Choice { .. } => ("choice", 1),
+                SystemOneQuestion::Score { .. } => ("score", 2),
             };
             schema.extend(self.tokens(&format!(
                 "\nFIELD {}\nID: {id}\nTYPE: {kind}\nINSTRUCTION: ",
@@ -208,9 +208,9 @@ impl ClefProcessor {
     }
 }
 
-fn options(question: &Question) -> Vec<(String, Value)> {
+fn options(question: &SystemOneQuestion) -> Vec<(String, Value)> {
     match question {
-        Question::Noul { criteria, .. } => [
+        SystemOneQuestion::Noul { criteria, .. } => [
             ("true", "The proposition is true or the answer is yes."),
             ("false", "The proposition is false or the answer is no."),
         ]
@@ -225,7 +225,7 @@ fn options(question: &Question) -> Vec<(String, Value)> {
             )
         })
         .collect(),
-        Question::Choice { criteria, .. } => {
+        SystemOneQuestion::Choice { criteria, .. } => {
             let mut options: Vec<_> = criteria
                 .iter()
                 .map(|(key, value)| (key.clone(), value.clone()))
@@ -233,7 +233,7 @@ fn options(question: &Question) -> Vec<(String, Value)> {
             options.sort_by(|a, b| a.0.cmp(&b.0));
             options
         }
-        Question::Score { criteria, .. } => criteria
+        SystemOneQuestion::Score { criteria, .. } => criteria
             .iter()
             .enumerate()
             .map(|(i, value)| (i.to_string(), value.clone()))

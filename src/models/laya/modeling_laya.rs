@@ -29,12 +29,12 @@ use crate::utils::attention::attend;
 use crate::utils::{read_checkpoint_json, render};
 use crate::{
     Action,
-    Answer,
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneAnswer,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
 };
@@ -271,7 +271,11 @@ fn action_features(logits: &[f32]) -> Result<[f32; 4]> {
 
 // Decode calibrated probabilities separately from backend execution; e.g. score is
 // the expected level index, while noul always reports the probability of true.
-fn decode_answer(question: &Question, distribution: &[f32], action: f32) -> Result<Answer> {
+fn decode_answer(
+    question: &SystemOneQuestion,
+    distribution: &[f32],
+    action: f32,
+) -> Result<SystemOneAnswer> {
     let action = Action {
         act_probability: round4(f64::from(action)),
     };
@@ -289,7 +293,7 @@ fn decode_answer(question: &Question, distribution: &[f32], action: f32) -> Resu
         ))
     };
     let answer = match question {
-        Question::Choice { criteria, .. } => {
+        SystemOneQuestion::Choice { criteria, .. } => {
             let selected = distribution
                 .iter()
                 .position(|value| *value >= maximum)
@@ -304,7 +308,7 @@ fn decode_answer(question: &Question, distribution: &[f32], action: f32) -> Resu
                 .cloned()
                 .zip(distribution.iter().map(|value| round4(f64::from(*value))))
                 .collect();
-            Answer::Choice {
+            SystemOneAnswer::Choice {
                 choice,
                 probabilities,
                 confidence,
@@ -312,7 +316,7 @@ fn decode_answer(question: &Question, distribution: &[f32], action: f32) -> Resu
                 action,
             }
         }
-        Question::Score { criteria, .. } => {
+        SystemOneQuestion::Score { criteria, .. } => {
             let score = round4(
                 distribution
                     .iter()
@@ -330,7 +334,7 @@ fn decode_answer(question: &Question, distribution: &[f32], action: f32) -> Resu
                 .enumerate()
                 .map(|(index, value)| (index.to_string(), round4(f64::from(*value))))
                 .collect();
-            Answer::Score {
+            SystemOneAnswer::Score {
                 score,
                 legend,
                 probabilities,
@@ -339,12 +343,12 @@ fn decode_answer(question: &Question, distribution: &[f32], action: f32) -> Resu
                 action,
             }
         }
-        Question::Noul { .. } => {
+        SystemOneQuestion::Noul { .. } => {
             let true_probability = distribution
                 .get(1)
                 .copied()
                 .ok_or_else(|| Error::Inference("missing true probability".into()))?;
-            Answer::Noul {
+            SystemOneAnswer::Noul {
                 noul: round4(f64::from(true_probability)),
                 confidence: round4(
                     f64::from(true_probability).max(1.0 - f64::from(true_probability)),
@@ -570,10 +574,13 @@ mod tests {
                     });
             let text_only = request.state.is_string()
                 && request.questions.values().all(|question| match question {
-                    Question::Choice { criteria, .. } | Question::Noul { criteria, .. } => criteria
+                    SystemOneQuestion::Choice { criteria, .. }
+                    | SystemOneQuestion::Noul { criteria, .. } => criteria
                         .values()
                         .all(|value| value.is_string() || value.is_null()),
-                    Question::Score { criteria, .. } => criteria.iter().all(Value::is_string),
+                    SystemOneQuestion::Score { criteria, .. } => {
+                        criteria.iter().all(Value::is_string)
+                    }
                 });
             if text_only {
                 assert!(same_tokens);

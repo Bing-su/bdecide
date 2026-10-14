@@ -29,12 +29,12 @@ use crate::utils::attention::attention;
 use crate::utils::{read_checkpoint_json, render};
 use crate::{
     Action,
-    Answer,
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneAnswer,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
 };
@@ -486,7 +486,7 @@ impl DecisionModel for ClefModel {
                 act_probability: 1.0,
             };
             let answer = match question {
-                Question::Noul { .. } => Answer::Noul {
+                SystemOneQuestion::Noul { .. } => SystemOneAnswer::Noul {
                     noul: round(
                         *distribution
                             .get("true")
@@ -496,7 +496,7 @@ impl DecisionModel for ClefModel {
                     answer_confidence: round(confidence),
                     action,
                 },
-                Question::Choice { criteria, .. } => {
+                SystemOneQuestion::Choice { criteria, .. } => {
                     let mut choice = None;
                     let mut selected_probability = -1.0;
                     let mut ordered = IndexMap::new();
@@ -510,7 +510,7 @@ impl DecisionModel for ClefModel {
                         }
                         ordered.insert(key.clone(), round(probability));
                     }
-                    Answer::Choice {
+                    SystemOneAnswer::Choice {
                         choice: choice.ok_or_else(|| Error::Inference("empty choice".into()))?,
                         confidence: round(selected_probability),
                         answer_confidence: round(confidence),
@@ -518,7 +518,7 @@ impl DecisionModel for ClefModel {
                         probabilities: ordered,
                     }
                 }
-                Question::Score { criteria, .. } => Answer::Score {
+                SystemOneQuestion::Score { criteria, .. } => SystemOneAnswer::Score {
                     score: round(
                         distribution
                             .values()

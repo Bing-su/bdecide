@@ -4,7 +4,7 @@ use std::ops::Range;
 use itertools::{Itertools, izip};
 use serde_json::Value;
 
-use crate::Question;
+use crate::SystemOneQuestion;
 use crate::utils::sanitize;
 
 const REPEAT: &str = "\n\nRead the same context again before answering. This is a repeated copy, not additional events or independent evidence:\n";
@@ -19,7 +19,7 @@ pub(super) fn option_text(key: &str, value: Option<&Value>) -> String {
 
 pub(super) fn prompt(
     state: &str,
-    question: &Question,
+    question: &SystemOneQuestion,
     options: &[String],
     repeat: bool,
 ) -> (String, Vec<Range<usize>>) {
@@ -69,7 +69,7 @@ pub(super) fn prompt(
             })
     });
     for (option, key, letter) in izip!(options, &keys, b'A'..=b'Z') {
-        let option = if matches!(question, Question::Choice { .. }) && positional {
+        let option = if matches!(question, SystemOneQuestion::Choice { .. }) && positional {
             option.strip_prefix(&format!("{key}: ")).unwrap_or(option)
         } else {
             option
@@ -132,23 +132,26 @@ mod tests {
                 .zip(case["rows"].as_array().unwrap())
             {
                 let text_only = match question {
-                    Question::Choice { criteria, .. } | Question::Noul { criteria, .. } => criteria
+                    SystemOneQuestion::Choice { criteria, .. }
+                    | SystemOneQuestion::Noul { criteria, .. } => criteria
                         .values()
                         .all(|value| value.is_string() || value.is_null()),
-                    Question::Score { criteria, .. } => criteria.iter().all(Value::is_string),
+                    SystemOneQuestion::Score { criteria, .. } => {
+                        criteria.iter().all(Value::is_string)
+                    }
                 };
                 if !text_only {
                     continue;
                 }
                 let options: Vec<_> = match question {
-                    Question::Choice { criteria, .. } => criteria
+                    SystemOneQuestion::Choice { criteria, .. } => criteria
                         .iter()
                         .map(|(key, value)| option_text(key, Some(value)))
                         .collect(),
-                    Question::Score { criteria, .. } => {
+                    SystemOneQuestion::Score { criteria, .. } => {
                         criteria.iter().map(|value| render(value, 0)).collect()
                     }
-                    Question::Noul { criteria, .. } => vec![
+                    SystemOneQuestion::Noul { criteria, .. } => vec![
                         option_text("no", criteria.get("false")),
                         option_text("yes", criteria.get("true")),
                     ],

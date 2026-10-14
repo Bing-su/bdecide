@@ -9,10 +9,10 @@ use bdecide::{
     DecisionModel,
     Device,
     LoadOptions,
-    Question,
     Qwen3_5ForCausalLM,
     Qwen3_5TextConfig,
     Qwen3_5TextModel,
+    SystemOneQuestion,
     SystemOneRequest,
 };
 #[cfg(feature = "cpu")]
@@ -203,10 +203,11 @@ fn verify(variant: &str, device: &Device, case_limit: usize) {
         let mut text_only = request.state.is_string();
         for (id, question) in &request.questions {
             let text_criteria = match question {
-                Question::Choice { criteria, .. } | Question::Noul { criteria, .. } => criteria
+                SystemOneQuestion::Choice { criteria, .. }
+                | SystemOneQuestion::Noul { criteria, .. } => criteria
                     .values()
                     .all(|value| value.is_string() || value.is_null()),
-                Question::Score { criteria, .. } => criteria.iter().all(Value::is_string),
+                SystemOneQuestion::Score { criteria, .. } => criteria.iter().all(Value::is_string),
             };
             if request.state.is_string() && text_criteria {
                 compare(&actual["answers"][id], &case["answers"][id]);

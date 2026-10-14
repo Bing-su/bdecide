@@ -9,7 +9,7 @@ use super::D1OmniConfig;
 use crate::models::lfm2_vl::Lfm2VlConfig;
 use crate::models::lfm2_vl::vision::ImageCrops;
 use crate::utils::{load_tokenizer, render, sanitize, token_ids};
-use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
+use crate::{Error, Result, SystemOneQuestion, SystemOneRequest, Truncation, Usage};
 
 pub(super) struct Processor {
     tokenizer: Tokenizer,
@@ -95,15 +95,17 @@ impl Processor {
         }
         for q in request.questions.values() {
             match q {
-                Question::Choice { criteria, .. } if criteria.len() < 2 => {
+                SystemOneQuestion::Choice { criteria, .. } if criteria.len() < 2 => {
                     return Err(Error::InvalidRequest(
                         "d1 choice needs at least two options".into(),
                     ));
                 }
-                Question::Score { criteria, .. } if !(2..=10).contains(&criteria.len()) => {
+                SystemOneQuestion::Score { criteria, .. }
+                    if !(2..=10).contains(&criteria.len()) =>
+                {
                     return Err(Error::InvalidRequest("d1 score needs 2..10 levels".into()));
                 }
-                Question::Noul { labels, .. }
+                SystemOneQuestion::Noul { labels, .. }
                     if labels.r#false != "false" || labels.r#true != "true" =>
                 {
                     return Err(Error::InvalidRequest(
@@ -125,7 +127,7 @@ impl Processor {
     pub(super) fn causal(
         &self,
         request: &SystemOneRequest,
-        q: &Question,
+        q: &SystemOneQuestion,
         images: &[ImageCrops],
         limit: usize,
         id: &str,
@@ -203,10 +205,10 @@ impl Processor {
         })
     }
 
-    fn causal_question(&self, q: &Question) -> Result<(String, Vec<Vec<u32>>)> {
+    fn causal_question(&self, q: &SystemOneQuestion) -> Result<(String, Vec<Vec<u32>>)> {
         let instructions = safe_text(q.instructions());
         Ok(match q {
-            Question::Noul { criteria, .. } => {
+            SystemOneQuestion::Noul { criteria, .. } => {
                 let extra = if criteria.is_empty() {
                     String::new()
                 } else {
@@ -231,7 +233,7 @@ impl Processor {
                     ],
                 )
             }
-            Question::Score { criteria, .. } => {
+            SystemOneQuestion::Score { criteria, .. } => {
                 let lines = criteria
                     .iter()
                     .enumerate()
@@ -249,7 +251,7 @@ impl Processor {
                     groups,
                 )
             }
-            Question::Choice { criteria, .. } => {
+            SystemOneQuestion::Choice { criteria, .. } => {
                 let labels: Vec<_> = criteria.keys().map(|x| x.trim()).collect();
                 let native = labels
                     .iter()
@@ -331,7 +333,7 @@ impl Processor {
         &self,
         config: &D1OmniConfig,
         request: &SystemOneRequest,
-        q: &Question,
+        q: &SystemOneQuestion,
         prefix: usize,
         id: &str,
         usage: &mut Usage,
@@ -451,17 +453,17 @@ impl Processor {
 fn safe_text(text: &str) -> String {
     sanitize(text).replace("<image>", "<¦image¦>")
 }
-fn qtype(q: &Question) -> usize {
+fn qtype(q: &SystemOneQuestion) -> usize {
     match q {
-        Question::Choice { .. } => 0,
-        Question::Score { .. } => 1,
-        Question::Noul { .. } => 2,
+        SystemOneQuestion::Choice { .. } => 0,
+        SystemOneQuestion::Score { .. } => 1,
+        SystemOneQuestion::Noul { .. } => 2,
     }
 }
 
-fn omni_options(q: &Question, image: bool, audio: bool) -> Result<Vec<String>> {
+fn omni_options(q: &SystemOneQuestion, image: bool, audio: bool) -> Result<Vec<String>> {
     Ok(match q {
-        Question::Choice { criteria, .. } => criteria
+        SystemOneQuestion::Choice { criteria, .. } => criteria
             .iter()
             .enumerate()
             .map(|(i, (name, value))| {
@@ -478,12 +480,12 @@ fn omni_options(q: &Question, image: bool, audio: bool) -> Result<Vec<String>> {
                 }
             })
             .collect::<Result<Vec<_>>>()?,
-        Question::Score { criteria, .. } => criteria
+        SystemOneQuestion::Score { criteria, .. } => criteria
             .iter()
             .enumerate()
             .map(|(i, value)| Ok(format!("level {i}: {}", render(value)?)))
             .collect::<Result<Vec<_>>>()?,
-        Question::Noul { criteria, .. } => {
+        SystemOneQuestion::Noul { criteria, .. } => {
             if audio {
                 vec!["false: no".into(), "true: yes".into()]
             } else {

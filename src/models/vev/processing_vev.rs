@@ -4,13 +4,13 @@ use std::ops::Range;
 use serde_json::Value;
 
 use crate::utils::{render, sanitize};
-use crate::{Error, Question, Result};
+use crate::{Error, Result, SystemOneQuestion};
 
 const SYSTEM: &str = "You are a careful judge. Read the state, then answer the question about it. Reply with only the answer token, nothing else.";
 
 pub(super) fn prompt(
     state: &str,
-    question: &Question,
+    question: &SystemOneQuestion,
     labels: &[String],
 ) -> Result<(String, Range<usize>, Vec<String>)> {
     let mut text = format!("<|im_start|>system\n{SYSTEM}<|im_end|>\n<|im_start|>user\nState:\n");
@@ -23,7 +23,7 @@ pub(super) fn prompt(
     ));
     let mut legend = Vec::new();
     match question {
-        Question::Choice { criteria, .. } => {
+        SystemOneQuestion::Choice { criteria, .. } => {
             text.push_str("Options:\n");
             for ((key, value), label) in criteria.iter().zip(labels) {
                 let description = desc(value)?;
@@ -35,7 +35,7 @@ pub(super) fn prompt(
             }
             text.push_str("\nAnswer with the letter of the single best option.");
         }
-        Question::Score { criteria, .. } => {
+        SystemOneQuestion::Score { criteria, .. } => {
             text.push_str(&format!(
                 "Scale, from lowest (0) to highest ({}):\n",
                 criteria.len() - 1
@@ -50,7 +50,7 @@ pub(super) fn prompt(
             }
             text.push_str("\nAnswer with the level number only.");
         }
-        Question::Noul { criteria, .. } => {
+        SystemOneQuestion::Noul { criteria, .. } => {
             text.push_str("Answer Yes or No.");
             for (key, label) in [("true", "Yes"), ("false", "No")] {
                 if let Some(value) = criteria.get(key).filter(|value| !value.is_null()) {

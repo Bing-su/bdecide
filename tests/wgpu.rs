@@ -10,8 +10,8 @@ use bdecide::{
     Device,
     Error,
     LoadOptions,
-    Question,
     Qwen3_5Config,
+    SystemOneQuestion,
     SystemOneRequest,
 };
 use burn::tensor::wgpu::WgpuBackend;
@@ -105,10 +105,11 @@ fn wgpu_matches_independent_python_answers(#[case] device: Option<Device>) {
         // Keep end-to-end Python parity for text prompts; native-token parity covers JSON.
         let text_only = request.state.is_string()
             && request.questions.values().all(|question| match question {
-                Question::Choice { criteria, .. } | Question::Noul { criteria, .. } => criteria
+                SystemOneQuestion::Choice { criteria, .. }
+                | SystemOneQuestion::Noul { criteria, .. } => criteria
                     .values()
                     .all(|value| value.is_string() || value.is_null()),
-                Question::Score { criteria, .. } => criteria.iter().all(Value::is_string),
+                SystemOneQuestion::Score { criteria, .. } => criteria.iter().all(Value::is_string),
             });
         if !text_only {
             continue;

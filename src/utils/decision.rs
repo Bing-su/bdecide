@@ -1,7 +1,7 @@
 //! Share scalar decision decoding across model families, e.g. D1 and Qwen readouts.
 use indexmap::IndexMap;
 
-use crate::{Action, Answer, Error, Question, Result};
+use crate::{Action, Error, Result, SystemOneAnswer, SystemOneQuestion};
 
 pub(crate) fn softmax(logits: &[f64]) -> Result<Vec<f64>> {
     if logits.is_empty() || logits.iter().any(|value| !value.is_finite()) {
@@ -14,16 +14,16 @@ pub(crate) fn softmax(logits: &[f64]) -> Result<Vec<f64>> {
 }
 
 pub(crate) fn answer(
-    question: &Question,
+    question: &SystemOneQuestion,
     probabilities: Vec<f64>,
     confidence: f64,
     legend: Vec<String>,
     true_index: usize,
-) -> Result<Answer> {
+) -> Result<SystemOneAnswer> {
     let max = probabilities.iter().copied().fold(0.0, f64::max);
     let action = Action::new(1.0);
     Ok(match question {
-        Question::Noul { .. } => Answer::Noul {
+        SystemOneQuestion::Noul { .. } => SystemOneAnswer::Noul {
             noul: *probabilities
                 .get(true_index)
                 .ok_or_else(|| Error::Inference("missing boolean probability".into()))?,
@@ -31,9 +31,9 @@ pub(crate) fn answer(
             answer_confidence: max,
             action,
         },
-        Question::Choice { criteria, .. } => {
+        SystemOneQuestion::Choice { criteria, .. } => {
             let best = argmax(&probabilities);
-            Answer::Choice {
+            SystemOneAnswer::Choice {
                 choice: criteria
                     .get_index(best)
                     .ok_or_else(|| Error::Inference("missing choice probability".into()))?
@@ -45,7 +45,7 @@ pub(crate) fn answer(
                 action,
             }
         }
-        Question::Score { .. } => Answer::Score {
+        SystemOneQuestion::Score { .. } => SystemOneAnswer::Score {
             score: probabilities
                 .iter()
                 .enumerate()

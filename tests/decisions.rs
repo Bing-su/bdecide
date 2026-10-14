@@ -12,13 +12,13 @@ use bdecide::decisions::{
 };
 use bdecide::{
     Action,
-    Answer,
     DecisionModel,
     DecisionsRequest,
     DecisionsResponse,
     Error,
     Metadata,
     Result,
+    SystemOneAnswer,
     SystemOneRequest,
     SystemOneResponse,
 };
@@ -61,8 +61,8 @@ fn request(questions: Value) -> DecisionsRequest {
         .expect("valid Decisions request shape")
 }
 
-fn predicate() -> Answer {
-    Answer::Noul {
+fn predicate() -> SystemOneAnswer {
+    SystemOneAnswer::Noul {
         noul: 0.8,
         confidence: 0.6,
         answer_confidence: 0.8,
@@ -271,7 +271,7 @@ fn typed_choices_names_and_score_follow_wire_contract() {
     model.response.answers = IndexMap::from([
         (
             "2".into(),
-            Answer::Score {
+            SystemOneAnswer::Score {
                 score: 1.1,
                 legend: IndexMap::new(),
                 probabilities: IndexMap::from([
@@ -286,7 +286,7 @@ fn typed_choices_names_and_score_follow_wire_contract() {
         ),
         (
             "1".into(),
-            Answer::Choice {
+            SystemOneAnswer::Choice {
                 choice: "true".into(),
                 probabilities: IndexMap::from([
                     ("false".into(), 0.1),

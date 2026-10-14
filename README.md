@@ -66,6 +66,44 @@ disabled. Existing System One requests and the `predict` CLI keep their formats.
 This adapter supplies a Rust method and JSON types; it does not start an HTTP
 server or call OpenAI.
 
+```rust,ignore
+use bdecide::{DecisionModel, SystemOneRequest};
+
+// Keep local choice IDs and JSON criteria, e.g. route a complaint to billing.
+let request = SystemOneRequest::builder().state("I was charged twice.").build()
+    .noul("refund", "Is a refund needed?")
+    .choice("department", "Route", [("billing", "Payments"), ("shipping", "Delivery")])
+    .score("severity", "Rate", ["low", "medium", "high"]);
+let response = model.system_one(&request)?;
+let department = response.choice("department");
+let refund_probability = response.noul("refund");
+let severity = response.score("severity");
+```
+
+| System One helper | Purpose |
+| --- | --- |
+| `SystemOneRequest::builder().state(state).build()` | Accept text or JSON state; start with no questions and default options |
+| `SystemOneRequest::new(state, questions)` | Keep the existing constructor with an ordered question map |
+| `.noul(id, instructions)`, `.choice(id, instructions, criteria)`, `.score(id, instructions, criteria)` | Insert questions in order; choices take `(ID, JSON value)` pairs and scores take ordered JSON levels |
+| `.question(id, question)`, `SystemOneQuestion::noul`, `SystemOneQuestion::choice`, `SystemOneQuestion::score` | Build questions separately; use enum fields for custom Noul criteria and labels |
+| `response.answer(id)`, `.noul(id)`, `.choice(id)`, `.score(id)` | Borrow an answer or read its value; missing IDs or different answer types return `None` |
+| `response.confidence(id)`, `.answer_confidence(id)`, `.action(id)`, `.act_probability(id)` | Read model confidence, answer confidence, and action fields for any answer type |
+| `response.choice_probability(id, choice_id)`, `.score_probability(id, index)` | Look up an exact choice ID or zero-based score level key, independently of map order |
+| `answer.noul()`, `.choice()`, `.score()`, `.confidence()`, `.answer_confidence()`, `.action()`, `.act_probability()`, `.choice_probability(choice_id)`, `.score_probability(index)` | Inspect an individual `SystemOneAnswer`; common fields are always present |
+
+System One helpers defer validation to `request.validate()` or `model.system_one(&request)`.
+Reusing a question or choice ID replaces its value while preserving its original position.
+Serialization, media fields, and inference options keep their existing formats and defaults.
+
+| Module | Files and responsibility |
+| --- | --- |
+| `src/system_one/` | `request.rs`: state, media, options, request validation; `question.rs`: questions, labels, and criteria validation; `response.rs`: response, metadata, and usage; `answer.rs`: answers and actions |
+| `src/decisions/` | `request.rs`, `question.rs`, `response.rs`, `answer.rs`: the corresponding Decisions types and helpers; `input.rs`: messages and content; `adapter.rs`: validation and conversion to/from System One |
+
+Each `mod.rs` declares private implementation files and re-exports the module's types.
+Callers can import `bdecide::system_one::SystemOneRequest` or `bdecide::decisions::DecisionsRequest`;
+existing crate-root imports such as `bdecide::SystemOneRequest` remain available.
+
 `DecisionModel::system_one_batch(&[SystemOneRequest])` returns
 `Result<Vec<SystemOneResponse>>` in input order and reuses the loaded weights.
 

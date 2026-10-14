@@ -6,7 +6,7 @@ use tokenizers::Tokenizer;
 use super::configuration_laya::LayaConfig;
 use crate::models::modernbert::ModernBertConfig;
 use crate::utils::{load_tokenizer, read_checkpoint_json, render, token_ids};
-use crate::{Error, Question, Result, SystemOneRequest, Truncation, Usage};
+use crate::{Error, Result, SystemOneQuestion, SystemOneRequest, Truncation, Usage};
 
 // Match Laya's reference head budgets; e.g. an option keeps its marker plus 48 tokens.
 const MAX_OPTION_TOKENS: usize = 48;
@@ -146,7 +146,11 @@ impl LayaProcessor {
 
     // Build only the question head so state truncation can use its final token count.
     // Option markers stay at the start of each option, e.g. [MASK] followed by its text.
-    fn encode_head(&self, question: &Question, head_max_len: usize) -> Result<(Encoded, bool)> {
+    fn encode_head(
+        &self,
+        question: &SystemOneQuestion,
+        head_max_len: usize,
+    ) -> Result<(Encoded, bool)> {
         let (name, kind) = kind(question);
         let mut instruction =
             self.encode(&format!("{name} question: {}", question.instructions()))?;
@@ -192,16 +196,16 @@ impl LayaProcessor {
 }
 
 // Keep Laya's question type IDs and prompt wording with its preprocessing.
-pub(super) fn kind(question: &Question) -> (&'static str, usize) {
+pub(super) fn kind(question: &SystemOneQuestion) -> (&'static str, usize) {
     match question {
-        Question::Choice { .. } => ("choice", 0),
-        Question::Score { .. } => ("score", 1),
-        Question::Noul { .. } => ("noul", 2),
+        SystemOneQuestion::Choice { .. } => ("choice", 0),
+        SystemOneQuestion::Score { .. } => ("score", 1),
+        SystemOneQuestion::Noul { .. } => ("noul", 2),
     }
 }
-fn rendered_options(question: &Question) -> Result<Vec<String>> {
+fn rendered_options(question: &SystemOneQuestion) -> Result<Vec<String>> {
     match question {
-        Question::Choice { criteria, .. } => criteria
+        SystemOneQuestion::Choice { criteria, .. } => criteria
             .iter()
             .map(|(key, value)| {
                 if value.is_null() || value.as_str() == Some("") {
@@ -211,12 +215,12 @@ fn rendered_options(question: &Question) -> Result<Vec<String>> {
                 }
             })
             .collect(),
-        Question::Score { criteria, .. } => criteria
+        SystemOneQuestion::Score { criteria, .. } => criteria
             .iter()
             .enumerate()
             .map(|(i, value)| Ok(format!("level {i}: {}", render(value)?)))
             .collect(),
-        Question::Noul {
+        SystemOneQuestion::Noul {
             criteria, labels, ..
         } => [
             (

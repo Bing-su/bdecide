@@ -17,8 +17,8 @@ use crate::{
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
     Truncation,
@@ -288,7 +288,7 @@ impl DecisionModel for VonModel {
         };
         let mut answers = IndexMap::new();
         for (id, question) in &request.questions {
-            if let Question::Noul { labels, .. } = question
+            if let SystemOneQuestion::Noul { labels, .. } = question
                 && (labels.r#true != "true" || labels.r#false != "false")
             {
                 return Err(Error::InvalidRequest(
@@ -304,7 +304,7 @@ impl DecisionModel for VonModel {
                 id,
                 &mut usage,
             )?;
-            if let Question::Noul { criteria, .. } = question {
+            if let SystemOneQuestion::Noul { criteria, .. } = question {
                 let explicit = criteria.values().any(|value| {
                     !value.is_null() && value.as_str().is_none_or(|text| !text.is_empty())
                 });
@@ -345,7 +345,7 @@ impl DecisionModel for VonModel {
                     .collect::<Vec<_>>(),
             )?;
             let confidence = choice_confidence(&probabilities);
-            let legend = if matches!(question, Question::Score { .. }) {
+            let legend = if matches!(question, SystemOneQuestion::Score { .. }) {
                 descriptions
             } else {
                 Vec::new()

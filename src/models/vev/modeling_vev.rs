@@ -13,8 +13,8 @@ use crate::{
     DecisionModel,
     Error,
     Metadata,
-    Question,
     Result,
+    SystemOneQuestion,
     SystemOneRequest,
     SystemOneResponse,
     Usage,
@@ -99,16 +99,16 @@ impl DecisionModel for VevModel {
         for (id, question) in &request.questions {
             let (prompt, range, legend) = prompt(&state, question, &self.labels)?;
             let groups: Vec<Vec<u32>> = match question {
-                Question::Choice { criteria, .. } => self
+                SystemOneQuestion::Choice { criteria, .. } => self
                     .label_ids
                     .iter()
                     .take(criteria.len())
                     .cloned()
                     .collect(),
-                Question::Score { criteria, .. } => (0..criteria.len())
+                SystemOneQuestion::Score { criteria, .. } => (0..criteria.len())
                     .map(|i| single(&self.readout, &i.to_string()))
                     .collect::<Result<_>>()?,
-                Question::Noul { .. } => ["Yes", "No"]
+                SystemOneQuestion::Noul { .. } => ["Yes", "No"]
                     .iter()
                     .map(|label| single(&self.readout, label))
                     .collect::<Result<_>>()?,
@@ -141,11 +141,11 @@ fn single(readout: &Readout, label: &str) -> Result<Vec<u32>> {
     Ok(ids)
 }
 
-fn validate_question(question: &Question) -> Result<()> {
+fn validate_question(question: &SystemOneQuestion) -> Result<()> {
     let invalid = match question {
-        Question::Choice { criteria, .. } => criteria.len() > 255,
-        Question::Score { criteria, .. } => criteria.len() > 10,
-        Question::Noul { .. } => false,
+        SystemOneQuestion::Choice { criteria, .. } => criteria.len() > 255,
+        SystemOneQuestion::Score { criteria, .. } => criteria.len() > 10,
+        SystemOneQuestion::Noul { .. } => false,
     };
     if invalid {
         return Err(Error::InvalidRequest(
@@ -185,10 +185,13 @@ mod tests {
                 .zip(case["rows"].as_array().unwrap())
             {
                 let text_only = match question {
-                    Question::Choice { criteria, .. } | Question::Noul { criteria, .. } => criteria
+                    SystemOneQuestion::Choice { criteria, .. }
+                    | SystemOneQuestion::Noul { criteria, .. } => criteria
                         .values()
                         .all(|value| value.is_string() || value.is_null()),
-                    Question::Score { criteria, .. } => criteria.iter().all(Value::is_string),
+                    SystemOneQuestion::Score { criteria, .. } => {
+                        criteria.iter().all(Value::is_string)
+                    }
                 };
                 if !text_only {
                     continue;
