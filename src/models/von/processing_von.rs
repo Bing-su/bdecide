@@ -183,6 +183,38 @@ pub(super) fn count_state(tokenizer: &Tokenizer, text: &str, vocab: usize) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decisions_score_preserves_labels_and_descriptions() {
+        use crate::DecisionsRequest;
+        use crate::decisions::DecisionLevel;
+
+        let request = DecisionsRequest::new("local", "alpha")
+            .score(
+                "severity",
+                "Rate",
+                [
+                    DecisionLevel::new("low").with_description("minor"),
+                    DecisionLevel::new("high"),
+                ],
+            )
+            .to_system_one()
+            .expect("valid Decisions score");
+        // Check Von's actual rubric text, e.g. "low" and "minor" must survive preprocessing.
+        let actual: Vec<Value> = descriptions(request.questions.get("0").expect("score question"))
+            .expect("Von rubric")
+            .into_iter()
+            .map(|text| serde_json::from_str(&text).expect("rubric retains the level object"))
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                serde_json::json!({"label":"low","description":"minor"}),
+                serde_json::json!({"label":"high"}),
+            ]
+        );
+    }
+
     #[test]
     fn decimal_digit_runs_match_python() {
         assert_eq!(

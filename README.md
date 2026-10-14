@@ -9,6 +9,63 @@ re-exports `burn::tensor::Device` and works with both direct loaders and `AutoMo
 The CLI retains its `cpu`, `wgpu`, and `auto` selections.
 Model metadata reports the Burn device's debug representation, e.g. `format!("{device:?}")`.
 
+`DecisionModel::decisions(&DecisionsRequest)` accepts the text subset of the
+[OpenAI Decisions request format](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+and returns `DecisionsResponse`. It uses the loaded local model's `system_one`
+implementation. Run `cargo run --example decisions -- ./checkpoint` for a complete example.
+
+```rust,ignore
+use bdecide::{DecisionModel, DecisionsRequest};
+
+// Use the loaded model's ID, e.g. a local checkpoint path rather than an OpenAI model name.
+let request = DecisionsRequest::new(&model.metadata().model_id, "I was charged twice.")
+    .predicate("refund", "Is a refund needed?")
+    .choice("department", "Who should handle this complaint?", ["billing", "shipping"])
+    .score("severity", "How severe is this issue?", ["low", "medium", "high"]);
+let response = model.decisions(&request)?;
+let department = response.choice_str("department");
+let refund_probability = response.probability("refund");
+let severity = response.score("severity");
+```
+
+| Helper | Purpose |
+| --- | --- |
+| `DecisionsRequest::new(model, input)` | Accept text directly or a `Vec<DecisionInputMessage>`; begin with no questions |
+| `.predicate(name, instructions)`, `.choice(name, instructions, choices)`, `.score(name, instructions, levels)` | Append named questions in order; choice values can be strings or booleans, score levels can be labels |
+| `.question(DecisionQuestion::predicate(instructions))` | Append an unnamed question; `DecisionQuestion::choice` and `::score` also support `.with_name(name)` |
+| `DecisionChoice::new(value).with_description(text)`, `DecisionLevel::new(label).with_description(text)` | Supply descriptions instead of bare choice values or level labels |
+| `DecisionInputMessage::user(content)`, `DecisionInputPart::text(text)` | Create text messages or ordered text parts |
+| `response.answer(name)`, `response.answers_named(name)` | Borrow the first matching answer or iterate all matches |
+| `response.probability(name)`, `.choice(name)`, `.choice_str(name)`, `.choice_bool(name)`, `.score(name)`, `.confidence(name)` | Read values without matching nested enums; `None` means absent or a different answer/value type |
+| `response.choice_probability(name, value)`, `.score_probability(name, index)` | Read a specific typed choice or zero-based level probability |
+| `answer.name()`, `.probability()`, `.choice()`, `.score()`, `.confidence()`, `.is_refusal()` | Inspect an individual answer, including unnamed answers from `response.answers` |
+
+Constructors defer validation to `request.validate()` or `model.decisions(&request)`.
+Single-answer lookups always use the first matching name, including a refusal;
+they do not skip it in favor of a later matching type. Use `answers_named` for
+duplicate names and `answer.is_refusal()` to distinguish refusal from other types.
+String `"true"` and boolean `true` remain distinct during probability lookup.
+
+| Decisions field | Local behavior |
+| --- | --- |
+| `model` | Must exactly match `model.metadata().model_id`; mismatch returns an error |
+| `input` | Text or user messages; adjacent `input_text` parts join verbatim, messages become an ordered `state` conversation array |
+| `predicate` | Default Noul prompt; returns the probability of true |
+| `choice` | 2–255 distinct string/boolean values; JSON literal keys and full option objects preserve values and descriptions in prompts |
+| `score` | Ordered label/description objects render as JSON text criteria; output keeps original labels and zero-based indices |
+| `name`, `answers` | Optional names, including duplicates and empty strings, survive; answers follow question order |
+| `confidence` | The local model's confidence, without OpenAI calibration guarantees |
+| `usage` | Local input/output counts and their sum; cache and reasoning counts are zero because these local paths do not use them |
+| `safety_identifier` | Accepts at most 128 characters; no local abuse tracking effect |
+| Images | Explicit error before inference; use `system_one` for supported local image inputs |
+| Refusal | Can deserialize hosted refusal answers; local failures remain errors, without action-based refusal thresholds |
+
+Question and choice IDs used internally are independent of optional names.
+All model-specific context and option limits still apply, and truncation remains
+disabled. Existing System One requests and the `predict` CLI keep their formats.
+This adapter supplies a Rust method and JSON types; it does not start an HTTP
+server or call OpenAI.
+
 `DecisionModel::system_one_batch(&[SystemOneRequest])` returns
 `Result<Vec<SystemOneResponse>>` in input order and reuses the loaded weights.
 

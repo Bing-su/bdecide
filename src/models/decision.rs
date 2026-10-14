@@ -4,13 +4,38 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use burn_std::stream::Stream;
 use itertools::Itertools;
 
-use crate::{Error, Metadata, Result, SystemOneRequest, SystemOneResponse};
+use crate::{
+    DecisionsRequest,
+    DecisionsResponse,
+    Error,
+    Metadata,
+    Result,
+    SystemOneRequest,
+    SystemOneResponse,
+};
 
 /// Implement this interface to use an independently maintained decision model.
 ///
 /// Implementations own preprocessing and output semantics; for example a Clef
 /// implementation can accept the same typed questions with its own processor.
 pub trait DecisionModel {
+    /// Evaluate OpenAI-shaped text questions with this loaded model.
+    ///
+    /// For example, `model.decisions(&request)?` maps predicate questions to Noul.
+    /// `request.model` must equal `metadata().model_id`; no model is downloaded or switched.
+    /// Confidence and token counts follow the local model, not OpenAI calibration.
+    fn decisions(&self, request: &DecisionsRequest) -> Result<DecisionsResponse> {
+        let converted = request.to_system_one()?;
+        if request.model != self.metadata().model_id {
+            return Err(Error::InvalidRequest(format!(
+                "requested model {:?} does not match loaded model {:?}",
+                request.model,
+                self.metadata().model_id,
+            )));
+        }
+        request.decode(self.system_one(&converted)?)
+    }
+
     /// Preprocess a shared state, infer its typed answers, and decode the results.
     ///
     /// For example, `model.system_one(&request)?` evaluates Choice and Score questions together.

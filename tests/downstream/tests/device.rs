@@ -1,5 +1,5 @@
 use bdecide::hub::ModelSource;
-use bdecide::{AutoModel, DecisionModel, Device, LoadOptions, SystemOneRequest};
+use bdecide::{AutoModel, DecisionModel, DecisionsRequest, Device, LoadOptions, SystemOneRequest};
 
 fn source() -> ModelSource {
     ModelSource::Local(format!("{}/../fixtures/tiny-laya", env!("CARGO_MANIFEST_DIR")).into())
@@ -19,6 +19,17 @@ fn infer(options: LoadOptions, expected_device: &Device) {
     assert_eq!(response.metadata.device, format!("{expected_device:?}"));
     assert_eq!(response.answers.len(), 1);
     assert!(response.usage.input_tokens > 0);
+    // Exercise the Decisions adapter through the public trait object on consumer-only backends.
+    let decisions =
+        DecisionsRequest::new(&model.metadata().model_id, "alpha").predicate("q", "cancel?");
+    let public: &dyn DecisionModel = &model;
+    let decisions = public
+        .decisions(&decisions)
+        .expect("consumer Decisions inference");
+    assert_eq!(decisions.answers.len(), 1);
+    assert_eq!(decisions.usage.input_tokens, response.usage.input_tokens);
+    let probability = decisions.probability("q").expect("predicate helper");
+    assert!((0.0..=1.0).contains(&probability));
     // Exercise the public batch method under consumer-only backends, e.g. NdArray.
     let expected = serde_json::to_value(&response).expect("response JSON");
     let batch = model

@@ -5,6 +5,7 @@
 
 #![recursion_limit = "256"]
 
+pub mod decisions;
 mod error;
 pub mod hub;
 mod media;
@@ -13,6 +14,7 @@ mod request;
 mod response;
 mod utils;
 
+pub use decisions::{DecisionsRequest, DecisionsResponse};
 pub use error::{Error, Result};
 pub use media::{AudioInput, ImageInput};
 pub use models::clef::{ClefConfig, ClefDecisionModel, ClefModel, ClefProcessor};
